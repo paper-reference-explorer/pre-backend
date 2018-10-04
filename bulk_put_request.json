@@ -1,0 +1,68 @@
+[
+  {
+    "type": "PUT",
+    "document": {
+      "id": "A_my",
+      "fields": {
+        "authors": "A et al.",
+        "title": "My first paper",
+        "year": "2018"
+      }
+    }
+  },
+  {
+    "type": "PUT",
+    "document": {
+      "id": "B_friendly",
+      "fields": {
+        "authors": "B et al.",
+        "title": "Friendly paper",
+        "year": "2018"
+      }
+    }
+  },
+  {
+    "type": "PUT",
+    "document": {
+      "id": "C_another",
+      "fields": {
+        "authors": "C et al.",
+        "title": "Another friendly paper",
+        "year": "2016"
+      }
+    }
+  },
+  {
+    "type": "PUT",
+    "document": {
+      "id": "D_old",
+      "fields": {
+        "authors": "D et al.",
+        "title": "Old paper",
+        "year": "2013"
+      }
+    }
+  },
+  {
+    "type": "PUT",
+    "document": {
+      "id": "E_older",
+      "fields": {
+        "authors": "E et al.",
+        "title": "Older paper",
+        "year": "2012"
+      }
+    }
+  },
+  {
+    "type": "PUT",
+    "document": {
+      "id": "F_young",
+      "fields": {
+        "authors": "F et al.",
+        "title": "Young paper",
+        "year": "2016"
+      }
+    }
+  }
+]

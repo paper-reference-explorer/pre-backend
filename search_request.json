@@ -1,0 +1,17 @@
+{
+  "search_request": {
+    "query": {
+      "query": "my paper"
+    },
+    "size": 10,
+    "from": 0,
+    "fields": [
+      "*"
+    ],
+    "sort": [
+      "-_score"
+    ],
+    "facets": {},
+    "highlight": {}
+  }
+}
