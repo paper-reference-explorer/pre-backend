@@ -8,20 +8,22 @@ logger = logging.getLogger(__name__)
 
 
 def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git') -> None:
-    path_base = Path('data')
-    path_input = path_base / 'input'
-    path_output = path_base / 'output'
+    base_path = Path('data')
+    input_path = base_path / 'input'
+    output_path = base_path / 'output'
 
-    if not path_input.is_dir():
+    # path might already exist
+    # for example, in case the directory is mounted in docker
+    if not input_path.exists():
         logger.info('Cloning repo...')
-        Repo.clone_from(source_url, path_input)
+        Repo.clone_from(source_url, input_path)
         logger.info('Finished cloning repo')
-    path_output.mkdir(exist_ok=True, parents=True)
+    output_path.mkdir(exist_ok=True, parents=True)
 
-    input_files = path_input.glob('*.csv')
+    input_files = input_path.glob('*.csv')
     input_files = sorted(input_files, reverse=True)
-    for file in input_files:
-        print(file.name)
+    for input_file in input_files:
+        logging.info(f'Converting {input_file.name}...')
 
 
 if __name__ == '__main__':
