@@ -1,0 +1,15 @@
+version: '3.7'
+services:
+  search:
+    image: mosuka/blast:v0.3.2
+    restart: always
+    ports:
+      - 10000:10000
+      - 10001:10001
+      - 10002:10002
+    environment:
+      BLAST_BIND_ADDR: blast1:10000
+      BLAST_GRPC_ADDR: blast1:10001
+      BLAST_HTTP_ADDR: blast1:10002
+      BLAST_RAFT_NODE_ID: blast1
+    command: start
