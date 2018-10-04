@@ -13,3 +13,7 @@ services:
       BLAST_HTTP_ADDR: search:10002
       BLAST_RAFT_NODE_ID: search
     command: start
+  watcher:
+    build: .
+    links:
+      - search:search

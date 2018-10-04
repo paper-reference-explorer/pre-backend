@@ -1,13 +1,22 @@
 from pathlib import Path
 import logging
+import socket
+import time
 
-from git import Repo
-
-logging.basicConfig(format='%(asctime)s - %(levelname)-8s - %(name)s    - %(message)s', level=logging.DEBUG)
+logging.basicConfig(format='%(asctime)s - %(levelname)-8s - %(name)s - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
 def main() -> None:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    connection_info = ('search', 10002)
+    result = sock.connect_ex(connection_info)
+    while result != 0:
+        logger.info("Port is not open")
+        time.sleep(1)
+        result = sock.connect_ex(connection_info)
+
+    logger.info("Port is open")
     base_path = Path('data')
     input_path = base_path / 'input'
 
