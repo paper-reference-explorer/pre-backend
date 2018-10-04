@@ -1,0 +1,1 @@
+This repository provides the backend for the paper-references-explorer website. It offers two basic functionalities: search for a paper and generation of the graph data for a set of papers.
