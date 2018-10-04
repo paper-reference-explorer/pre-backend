@@ -11,5 +11,5 @@ curl -X GET 'http://127.0.0.1:10002/rest/A_my'
 ### test search
 ```bash
 curl -X POST 'http://127.0.0.1:10002/rest/_bulk' -d @./example-data/bulk_put_request.json
-curl -X POST 'http://localhost:10002/rest/_search?pretty-print=true' -d @./example-data/search_request.json
+curl -X POST 'http://127.0.0.1:10002/rest/_search?pretty-print=true' -d @./example-data/search_request.json
 ```
