@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 def clean_field(s: str) -> str:
-    return s.replace('"', '').replace('\t', ' ')
+    return s.replace('"', '').replace('\t', ' ').replace('\\', '\\\\')
 
 
 def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
@@ -35,6 +35,7 @@ def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
         with open(str(output_file_path), 'w') as output_file:
             output_file.write('[')
 
+            is_first_line = True
             with open(str(input_file_path), 'r') as input_file:
                 for line in input_file:
                     line_clean = line.strip()
@@ -45,7 +46,7 @@ def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
                         authors = authors.replace(',', ', ')
                         title = clean_field(fields[-1])
 
-                        document = f"""
+                        document = f"""{'' if is_first_line else ','}
   {{
     "type": "PUT",
     "document": {{
@@ -53,11 +54,12 @@ def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
       "fields": {{
         "year": "{year}",
         "authors": "{authors}",
-        "title": "{title}",
+        "title": "{title}"
       }}
     }}
-  }},"""
+  }}"""
                         output_file.write(document)
+                        is_first_line = False
                         
             output_file.write('\n]')
 
