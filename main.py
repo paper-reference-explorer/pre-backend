@@ -18,6 +18,11 @@ def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git') 
         logger.info('Finished cloning repo')
     path_output.mkdir(exist_ok=True, parents=True)
 
+    input_files = path_input.glob('*.csv')
+    input_files = sorted(input_files, reverse=True)
+    for file in input_files:
+        print(file.name)
+
 
 if __name__ == '__main__':
     main()
