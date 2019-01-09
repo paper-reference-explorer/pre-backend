@@ -72,7 +72,8 @@ def clean_folder_maybe(path: Path, clean_folder: bool, recreate: bool = True) ->
         logger.info(f'Cleaning folder {path.name}')
         shutil.rmtree(path)
 
-    path.mkdir(exist_ok=True, parents=True)
+    if recreate:
+        path.mkdir(exist_ok=True, parents=True)
 
 
 def count_elements_in_file(input_file_path: Path) -> int:
@@ -95,7 +96,7 @@ def write_content(input_file: TextIO, output_file_path: Path, max_elements_per_f
             line_clean = line.strip()
             if not line_clean.startswith('#'):
                 n_elements += 1
-                arxiv_id, authors, title = extract_fields(line, n_max_splits)
+                arxiv_id, authors, title = extract_blast_fields(line, n_max_splits)
                 document = convert_to_json_string(year, is_first_line, arxiv_id, authors, title)
                 output_file.write(document)
                 is_first_line = False
@@ -121,7 +122,7 @@ def convert_to_json_string(year: str, is_first_line: bool, arxiv_id: str, author
     return document
 
 
-def extract_fields(line: str, n_max_splits: int) -> Tuple[str, str, str]:
+def extract_blast_fields(line: str, n_max_splits: int) -> Tuple[str, str, str]:
     fields = line.split(';', n_max_splits)
     arxiv_id = clean_id(fields[0])
     authors = clean_authors(fields[5])
