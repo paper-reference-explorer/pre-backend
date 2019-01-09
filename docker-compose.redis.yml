@@ -6,5 +6,5 @@ services:
     build:
       context: .
       target: redis
-    links:
-      - redis:redis
+    depends_on:
+      - redis

@@ -18,5 +18,5 @@ services:
     build:
       context: .
       target: blast
-    links:
-      - blast:blast
+    depends_on:
+      - blast
