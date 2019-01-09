@@ -2,7 +2,7 @@ import shutil
 from pathlib import Path
 import logging
 import math
-from typing import TextIO
+from typing import TextIO, Tuple
 import re
 
 from git import Repo
@@ -18,6 +18,107 @@ pattern_alphanumeric = re.compile('[\W]+')
 stop_words = set(nltk.corpus.stopwords.words('english'))
 stemmer = nltk.stem.SnowballStemmer('english')
 vocab = set()
+
+
+def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
+         n_max_splits: int = 7, max_elements_per_file: int = 15000,
+         clean_input: bool = False, clean_output: bool = False) -> None:
+    base_path = Path('data')
+    input_path = base_path / 'input'
+    output_path = base_path / 'output'
+    n_total_elements = 0
+    setup_directories(input_path, clean_input, output_path, clean_output, source_url)
+
+    input_file_paths = input_path.glob('*.csv')
+    input_file_paths = sorted(input_file_paths, reverse=True)
+    for input_file_path in input_file_paths:
+        logging.info(f'Converting {input_file_path.name}...')
+        year = input_file_path.name[5:9]
+        n_elements_in_file = count_elements_in_file(input_file_path)
+        with open(str(input_file_path), 'r') as input_file:
+            n_files_needed = math.ceil(n_elements_in_file / max_elements_per_file)
+            n_elements_in_file = 0
+            for file_index in range(n_files_needed):
+                output_file_path = output_path / f'{year}_{file_index + 1}.json'
+                if output_file_path.exists():
+                    logging.info(f'File {output_file_path.name} already exists. Skipping.')
+                else:
+                    n_elements_in_file += write_content(input_file, output_file_path, max_elements_per_file,
+                                                        n_max_splits, year)
+            logging.info(f'N elements converted: {n_elements_in_file}')
+            n_total_elements += n_elements_in_file
+            logging.info(f'vocab size so far: {len(vocab)}')
+
+    logging.info(f'N elements converted in total: {n_total_elements}')
+    logging.info(f'vocab size total: {len(vocab)}')
+
+
+def setup_directories(input_path, clean_input, output_path, clean_output, source_url):
+    if clean_input and input_path.exists():
+        logger.info('Cleaning input folder')
+        shutil.rmtree(input_path)
+    if not input_path.exists():
+        logger.info('Cloning repo...')
+        Repo.clone_from(source_url, input_path)
+        logger.info('Finished cloning repo')
+    if clean_output and output_path.exists():
+        logger.info('Cleaning output folder')
+        shutil.rmtree(output_path)
+    output_path.mkdir(exist_ok=True, parents=True)
+
+
+def count_elements_in_file(input_file_path):
+    n_elements_in_file = 0
+    with open(str(input_file_path), 'r') as input_file:
+        for line in input_file:
+            line_clean = line.strip()
+            if not line_clean.startswith('#'):
+                n_elements_in_file += 1
+    return n_elements_in_file
+
+
+def write_content(input_file: TextIO, output_file_path: Path, max_elements_per_file: int,
+                  n_max_splits: int, year: str) -> int:
+    with open(str(output_file_path), 'w') as output_file:
+        output_file.write('[')
+        n_elements = 0
+        is_first_line = True
+        for line in input_file:
+            line_clean = line.strip()
+            if not line_clean.startswith('#'):
+                n_elements += 1
+                arxiv_id, authors, title = extract_fields(line, n_max_splits)
+                document = convert_to_json_string(year, is_first_line, arxiv_id, authors, title)
+                output_file.write(document)
+                is_first_line = False
+                if n_elements == max_elements_per_file:
+                    break
+        output_file.write('\n]')
+        return n_elements
+
+
+def convert_to_json_string(year: str, is_first_line: bool, arxiv_id: str, authors: str, title: str) -> str:
+    document = f"""{'' if is_first_line else ','}
+  {{
+    "type": "PUT",
+    "document": {{
+      "id": "{arxiv_id}",
+      "fields": {{
+        "year": "{year}",
+        "authors": "{authors}",
+        "title": "{title}"
+      }}
+    }}
+  }}"""
+    return document
+
+
+def extract_fields(line: str, n_max_splits: int) -> Tuple[str, str, str]:
+    fields = line.split(';', n_max_splits)
+    arxiv_id = clean_id(fields[0])
+    authors = clean_authors(fields[5])
+    title = clean_title(fields[-1])
+    return arxiv_id, authors, title
 
 
 def clean_field(s: str) -> str:
@@ -51,101 +152,6 @@ def clean_title(s: str) -> str:
     [vocab.add(w) for w in s]
     s = ' '.join(s)
     return s
-
-
-def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
-         n_max_splits: int = 7, max_elements_per_file: int = 15000,
-         clean_input: bool = False, clean_output: bool = False) -> None:
-    base_path = Path('data')
-    input_path = base_path / 'input'
-    output_path = base_path / 'output'
-    n_total_elements = 0
-
-    if clean_input and input_path.exists():
-        logger.info('Cleaning input folder')
-        shutil.rmtree(input_path)
-
-    if not input_path.exists():
-        logger.info('Cloning repo...')
-        Repo.clone_from(source_url, input_path)
-        logger.info('Finished cloning repo')
-
-    if clean_output and output_path.exists():
-        logger.info('Cleaning output folder')
-        shutil.rmtree(output_path)
-    output_path.mkdir(exist_ok=True, parents=True)
-
-    input_file_paths = input_path.glob('*.csv')
-    input_file_paths = sorted(input_file_paths, reverse=True)
-    for input_file_path in input_file_paths:
-
-        logging.info(f'Converting {input_file_path.name}...')
-        year = input_file_path.name[5:9]
-
-        n_elements_in_file = 0
-        with open(str(input_file_path), 'r') as input_file:
-            for line in input_file:
-                line_clean = line.strip()
-                if not line_clean.startswith('#'):
-                    n_elements_in_file += 1
-
-        with open(str(input_file_path), 'r') as input_file:
-            n_files_needed = math.ceil(n_elements_in_file / max_elements_per_file)
-            n_elements_in_file = 0
-            for file_index in range(n_files_needed):
-                output_file_path = output_path / f'{year}_{file_index + 1}.json'
-                if output_file_path.exists():
-                    logging.info(f'File {output_file_path.name} already exists. Skipping.')
-                else:
-                    with open(str(output_file_path), 'w') as output_file:
-                        output_file.write('[')
-                        n_elements_in_file += write_content(input_file, output_file, max_elements_per_file,
-                                                            n_max_splits,
-                                                            year)
-                        output_file.write('\n]')
-            logging.info(f'N elements converted: {n_elements_in_file}')
-            n_total_elements += n_elements_in_file
-            logging.info(f'vocab size so far: {len(vocab)}')
-
-    logging.info(f'N elements converted in total: {n_total_elements}')
-    logging.info(f'vocab size total: {len(vocab)}')
-
-
-def write_content(input_file: TextIO, output_file: TextIO, max_elements_per_file: int,
-                  n_max_splits: int, year: str) -> int:
-    n_elements = 0
-    for line in input_file:
-        line_clean = line.strip()
-        if not line_clean.startswith('#'):
-            n_elements += 1
-            is_first_line = n_elements == 1
-            document = convert_to_json_string(line_clean, is_first_line, n_max_splits, year)
-            output_file.write(document)
-            if n_elements == max_elements_per_file:
-                break
-    return n_elements
-
-
-def convert_to_json_string(line: str, is_first_line: bool, n_max_splits: int, year: str) -> str:
-    fields = line.split(';', n_max_splits)
-    arxiv_id = clean_id(fields[0])
-    authors = fields[5]
-    authors_cleaned = clean_authors(authors)
-    title = fields[-1]
-    title_cleaned = clean_title(title)
-    document = f"""{'' if is_first_line else ','}
-  {{
-    "type": "PUT",
-    "document": {{
-      "id": "{arxiv_id}",
-      "fields": {{
-        "year": "{year}",
-        "authors": "{authors_cleaned}",
-        "title": "{title_cleaned}"
-      }}
-    }}
-  }}"""
-    return document
 
 
 if __name__ == '__main__':
