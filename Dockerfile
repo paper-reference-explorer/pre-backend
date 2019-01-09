@@ -22,5 +22,5 @@ RUN pipenv install --system --deploy --ignore-pipfile
 
 COPY --from=converter /usr/src/app/data/output ./data/input
 
-COPY watcher.py .
+COPY watch.py .
 CMD ["python", "./watch.py"]
