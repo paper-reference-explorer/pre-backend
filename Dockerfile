@@ -7,7 +7,8 @@ COPY Pipfile ./
 COPY Pipfile.lock ./
 RUN pipenv install --system --deploy --ignore-pipfile --dev
 
-COPY . .
+COPY data .
+COPY convert.py .
 RUN python ./convert.py
 
 
