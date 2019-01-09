@@ -16,6 +16,7 @@ WORKDIR /usr/src/app
 COPY Pipfile .
 COPY Pipfile.lock .
 RUN pipenv install --system --deploy --ignore-pipfile
+COPY watch_helper.py .
 
 FROM py as blast
 COPY --from=converter /usr/src/app/data/output_for/blast ./data/input
