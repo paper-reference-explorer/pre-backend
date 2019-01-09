@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 import logging
 import math
@@ -52,25 +53,32 @@ def clean_title(s: str) -> str:
     return s
 
 
-# add output cache with overwrite argument
 def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
-         n_max_splits: int = 7, max_elements_per_file: int = 15000) -> None:
+         n_max_splits: int = 7, max_elements_per_file: int = 15000,
+         clean_input: bool = False, clean_output: bool = False) -> None:
     base_path = Path('data')
     input_path = base_path / 'input'
     output_path = base_path / 'output'
     n_total_elements = 0
 
-    # path might already exist
-    # for example, in case the directory is mounted in docker
+    if clean_input and input_path.exists():
+        logger.info('Cleaning input folder')
+        shutil.rmtree(input_path)
+
     if not input_path.exists():
         logger.info('Cloning repo...')
         Repo.clone_from(source_url, input_path)
         logger.info('Finished cloning repo')
+
+    if clean_output and output_path.exists():
+        logger.info('Cleaning output folder')
+        shutil.rmtree(output_path)
     output_path.mkdir(exist_ok=True, parents=True)
 
     input_file_paths = input_path.glob('*.csv')
     input_file_paths = sorted(input_file_paths, reverse=True)
     for input_file_path in input_file_paths:
+
         logging.info(f'Converting {input_file_path.name}...')
         year = input_file_path.name[5:9]
 
@@ -123,10 +131,8 @@ def convert_to_json_string(line: str, is_first_line: bool, n_max_splits: int, ye
     arxiv_id = clean_id(fields[0])
     authors = fields[5]
     authors_cleaned = clean_authors(authors)
-    authors = clean_field(authors).replace(',', ', ')
     title = fields[-1]
     title_cleaned = clean_title(title)
-    title = clean_field(title)
     document = f"""{'' if is_first_line else ','}
   {{
     "type": "PUT",
@@ -135,9 +141,7 @@ def convert_to_json_string(line: str, is_first_line: bool, n_max_splits: int, ye
       "fields": {{
         "year": "{year}",
         "authors": "{authors_cleaned}",
-        "title": "{title_cleaned}",
-        "_authors": "{authors}",
-        "_title": "{title}"
+        "title": "{title_cleaned}"
       }}
     }}
   }}"""
