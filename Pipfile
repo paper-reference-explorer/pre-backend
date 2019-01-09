@@ -5,9 +5,9 @@ name = "pypi"
 
 [packages]
 requests = "*"
+gitpython = "*"
 
 [dev-packages]
-gitpython = "*"
 
 [requires]
 python_version = "3.7"
