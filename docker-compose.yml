@@ -16,6 +16,8 @@ services:
       BLAST_STORE_DIR: /search/node1/store
       BLAST_INDEX_DIR: /search/node1/index
       BLAST_INDEX_MAPPING: /search/index_mapping.json
+    volumes:
+      - ./search:/search
     command: start
   watcher:
     build: .
