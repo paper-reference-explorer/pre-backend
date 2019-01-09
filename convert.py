@@ -22,12 +22,15 @@ vocab = set()
 
 def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
          n_max_splits: int = 7, max_elements_per_file: int = 15000,
-         clean_input: bool = False, clean_output: bool = False) -> None:
+         clean_input: bool = False, clean_output_for_blast: bool = False, clean_output_for_redis: bool = False) -> None:
     base_path = Path('data')
     input_path = base_path / 'input'
-    output_path = base_path / 'output'
+    output_path_base = base_path / 'output_for'
+    output_path_blast = output_path_base / 'blast'
+    output_path_redis = output_path_base / 'redis'
     n_total_elements = 0
-    setup_directories(input_path, clean_input, output_path, clean_output, source_url)
+    setup_directories(input_path, clean_input, output_path_blast, clean_output_for_blast,
+                      output_path_redis, clean_output_for_redis, source_url)
 
     input_file_paths = input_path.glob('*.csv')
     input_file_paths = sorted(input_file_paths, reverse=True)
@@ -39,7 +42,7 @@ def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
             n_files_needed = math.ceil(n_elements_in_file / max_elements_per_file)
             n_elements_in_file = 0
             for file_index in range(n_files_needed):
-                output_file_path = output_path / f'{year}_{file_index + 1}.json'
+                output_file_path = output_path_blast / f'{year}_{file_index + 1}.json'
                 if output_file_path.exists():
                     logging.info(f'File {output_file_path.name} already exists. Skipping.')
                 else:
@@ -53,21 +56,26 @@ def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
     logging.info(f'vocab size total: {len(vocab)}')
 
 
-def setup_directories(input_path, clean_input, output_path, clean_output, source_url):
-    if clean_input and input_path.exists():
-        logger.info('Cleaning input folder')
-        shutil.rmtree(input_path)
+def setup_directories(input_path: Path, clean_input: bool, output_path_blast: Path, clean_output_for_blast: bool,
+                      output_path_redis: Path, clean_output_for_redis: bool, source_url: str) -> None:
+    clean_folder_maybe(input_path, clean_input, recreate=False)
+    clean_folder_maybe(output_path_blast, clean_output_for_blast)
+    clean_folder_maybe(output_path_redis, clean_output_for_redis)
     if not input_path.exists():
         logger.info('Cloning repo...')
         Repo.clone_from(source_url, input_path)
         logger.info('Finished cloning repo')
-    if clean_output and output_path.exists():
-        logger.info('Cleaning output folder')
-        shutil.rmtree(output_path)
-    output_path.mkdir(exist_ok=True, parents=True)
 
 
-def count_elements_in_file(input_file_path):
+def clean_folder_maybe(path: Path, clean_folder: bool, recreate: bool = True) -> None:
+    if clean_folder and path.exists():
+        logger.info(f'Cleaning folder {path.name}')
+        shutil.rmtree(path)
+
+    path.mkdir(exist_ok=True, parents=True)
+
+
+def count_elements_in_file(input_file_path: Path) -> int:
     n_elements_in_file = 0
     with open(str(input_file_path), 'r') as input_file:
         for line in input_file:

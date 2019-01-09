@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def main() -> None:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    connection_info = ('search', 10002)
+    connection_info = ('blast', 10002)
     result = sock.connect_ex(connection_info)
     while result != 0:
         logger.info('Port is not open')

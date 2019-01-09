@@ -1,12 +1,7 @@
 version: '3.7'
 services:
-  search:
+  blast:
     image: mosuka/blast:v0.3.2
-    restart: always
-    ports:
-      - 10000:10000
-      - 10001:10001
-      - 10002:10002
     environment:
       BLAST_BIND_ADDR: search:10000
       BLAST_GRPC_ADDR: search:10001
@@ -20,6 +15,8 @@ services:
       - ./search:/search
     command: start
   watcher:
-    build: .
+    build:
+      context: .
+      target: blast
     links:
-      - search:search
+      - blast:blast
