@@ -86,11 +86,15 @@ def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
             n_elements_in_file = 0
             for file_index in range(n_files_needed):
                 output_file_path = output_path / f'{year}_{file_index + 1}.json'
-                with open(str(output_file_path), 'w') as output_file:
-                    output_file.write('[')
-                    n_elements_in_file += write_content(input_file, output_file, max_elements_per_file, n_max_splits,
-                                                        year)
-                    output_file.write('\n]')
+                if output_file_path.exists():
+                    logging.info(f'File {output_file_path.name} already exists. Skipping.')
+                else:
+                    with open(str(output_file_path), 'w') as output_file:
+                        output_file.write('[')
+                        n_elements_in_file += write_content(input_file, output_file, max_elements_per_file,
+                                                            n_max_splits,
+                                                            year)
+                        output_file.write('\n]')
             logging.info(f'N elements converted: {n_elements_in_file}')
             n_total_elements += n_elements_in_file
             logging.info(f'vocab size so far: {len(vocab)}')
