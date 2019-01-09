@@ -18,7 +18,10 @@ def main() -> None:
         time.sleep(1)
         result = sock.connect_ex(connection_info)
 
-    logger.info("Port is open")
+    logger.info('Port is open')
+    for _ in range(5):
+        logger.info('.')
+        time.sleep(1)
     base_path = Path('data')
     input_path = base_path / 'output'
 
