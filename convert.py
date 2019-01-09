@@ -2,8 +2,9 @@ import shutil
 from pathlib import Path
 import logging
 import math
-from typing import TextIO, Tuple
+from typing import TextIO, Tuple, Optional
 import re
+import csv
 
 from git import Repo
 import nltk
@@ -13,6 +14,11 @@ nltk.download('stopwords')
 logging.basicConfig(format='%(asctime)s - %(levelname)-8s - %(name)s    - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+id_index = 0
+authors_index = 5
+title_index = -1
+min_title_word_length = 3
+
 pattern_alpha = re.compile('[^a-zA-Z ]+')
 pattern_alphanumeric = re.compile('[\W]+')
 stop_words = set(nltk.corpus.stopwords.words('english'))
@@ -21,7 +27,7 @@ vocab = set()
 
 
 def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
-         n_max_splits: int = 7, max_elements_per_file: int = 15000,
+         n_max_splits: int = 7, max_elements_per_file: int = 15000, max_n_files: Optional[int] = 1,
          clean_input: bool = False, clean_output_for_blast: bool = False, clean_output_for_redis: bool = False) -> None:
     base_path = Path('data')
     input_path = base_path / 'input'
@@ -34,26 +40,36 @@ def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
 
     input_file_paths = input_path.glob('*.csv')
     input_file_paths = sorted(input_file_paths, reverse=True)
-    for input_file_path in input_file_paths:
+    for index, input_file_path in enumerate(input_file_paths):
+        if max_n_files is not None and index >= max_n_files:
+            break
+
         logging.info(f'Converting {input_file_path.name}...')
         year = input_file_path.name[5:9]
         n_elements_in_file = count_elements_in_file(input_file_path)
+        n_files_needed = math.ceil(n_elements_in_file / max_elements_per_file)
         with open(str(input_file_path), 'r') as input_file:
-            n_files_needed = math.ceil(n_elements_in_file / max_elements_per_file)
             n_elements_in_file = 0
             for file_index in range(n_files_needed):
-                output_file_path = output_path_blast / f'{year}_{file_index + 1}.json'
-                if output_file_path.exists():
-                    logging.info(f'File {output_file_path.name} already exists. Skipping.')
+                output_file_path_blast = get_output_file_path(file_index, output_path_blast, year, 'json')
+                output_file_path_redis = get_output_file_path(file_index, output_path_redis, year, 'csv')
+                if output_file_path_blast.exists() and output_file_path_redis.exists():
+                    logging.info(f'File {output_file_path_blast.name} or File {output_file_path_redis.name}'
+                                 + ' already exists. Skipping.')
                 else:
-                    n_elements_in_file += write_content(input_file, output_file_path, max_elements_per_file,
-                                                        n_max_splits, year)
+                    n_elements_in_file += write_content(input_file, output_file_path_blast, output_file_path_redis,
+                                                        max_elements_per_file, n_max_splits, year)
             logging.info(f'N elements converted: {n_elements_in_file}')
             n_total_elements += n_elements_in_file
             logging.info(f'vocab size so far: {len(vocab)}')
 
     logging.info(f'N elements converted in total: {n_total_elements}')
     logging.info(f'vocab size total: {len(vocab)}')
+
+
+def get_output_file_path(file_index: int, output_path: Path, year: str, extension: str) -> Path:
+    output_file_path = output_path / f'{year}_{file_index + 1}.{extension}'
+    return output_file_path
 
 
 def setup_directories(input_path: Path, clean_input: bool, output_path_blast: Path, clean_output_for_blast: bool,
@@ -86,27 +102,37 @@ def count_elements_in_file(input_file_path: Path) -> int:
     return n_elements_in_file
 
 
-def write_content(input_file: TextIO, output_file_path: Path, max_elements_per_file: int,
-                  n_max_splits: int, year: str) -> int:
-    with open(str(output_file_path), 'w') as output_file:
-        output_file.write('[')
-        n_elements = 0
-        is_first_line = True
-        for line in input_file:
-            line_clean = line.strip()
-            if not line_clean.startswith('#'):
-                n_elements += 1
-                arxiv_id, authors, title = extract_blast_fields(line, n_max_splits)
-                document = convert_to_json_string(year, is_first_line, arxiv_id, authors, title)
-                output_file.write(document)
-                is_first_line = False
-                if n_elements == max_elements_per_file:
-                    break
-        output_file.write('\n]')
-        return n_elements
+def write_content(input_file: TextIO, output_file_path_blast: Path, output_file_path_redis: Path,
+                  max_elements_per_file: int, n_max_splits: int, year: str) -> int:
+    with open(str(output_file_path_blast), 'w') as output_file_blast:
+        output_file_blast.write('[')
+        with open(str(output_file_path_redis), 'w', newline='') as output_file_redis:
+            writer_redis = csv.writer(output_file_redis)
+
+            n_elements = 0
+            is_first_line = True
+            for line in input_file:
+                line_clean = line.strip()
+                if not line_clean.startswith('#'):
+                    n_elements += 1
+
+                    arxiv_id, authors, title = extract_fields_blast(line, n_max_splits)
+                    document = convert_to_document_blast(year, is_first_line, arxiv_id, authors, title)
+                    output_file_blast.write(document)
+
+                    arxiv_id, authors, title = extract_fields_redis(line, n_max_splits)
+                    document = convert_to_document_redis(year, is_first_line, arxiv_id, authors, title)
+                    writer_redis.writerow(document)
+
+                    is_first_line = False
+                    if n_elements == max_elements_per_file:
+                        break
+        output_file_blast.write('\n]')
+
+    return n_elements
 
 
-def convert_to_json_string(year: str, is_first_line: bool, arxiv_id: str, authors: str, title: str) -> str:
+def convert_to_document_blast(year: str, is_first_line: bool, arxiv_id: str, authors: str, title: str) -> str:
     document = f"""{'' if is_first_line else ','}
   {{
     "type": "PUT",
@@ -122,11 +148,25 @@ def convert_to_json_string(year: str, is_first_line: bool, arxiv_id: str, author
     return document
 
 
-def extract_blast_fields(line: str, n_max_splits: int) -> Tuple[str, str, str]:
+def extract_fields_blast(line: str, n_max_splits: int) -> Tuple[str, str, str]:
     fields = line.split(';', n_max_splits)
-    arxiv_id = clean_id(fields[0])
-    authors = clean_authors(fields[5])
-    title = clean_title(fields[-1])
+    arxiv_id = clean_id(fields[id_index])
+    authors = clean_authors(fields[authors_index])
+    title = clean_title(fields[title_index])
+    return arxiv_id, authors, title
+
+
+def convert_to_document_redis(year: str, is_first_line: bool, arxiv_id: str, authors: str,
+                              title: str) -> Tuple[str, str, str, str]:
+    document = [arxiv_id, year, authors, title]
+    return document
+
+
+def extract_fields_redis(line: str, n_max_splits: int) -> Tuple[str, str, str]:
+    fields = line.split(';', n_max_splits)
+    arxiv_id = clean_id(fields[id_index])
+    authors = clean_field(fields[authors_index]).replace(',', ', ')
+    title = clean_field(fields[-1])
     return arxiv_id, authors, title
 
 
@@ -157,7 +197,7 @@ def clean_title(s: str) -> str:
     s = pattern_alpha.sub(' ', s)
     s = [stemmer.stem(w)
          for w in s.split()
-         if w not in stop_words and len(w) > 3]
+         if w not in stop_words and len(w) > min_title_word_length]
     [vocab.add(w) for w in s]
     s = ' '.join(s)
     return s
