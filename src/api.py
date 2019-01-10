@@ -52,12 +52,18 @@ def autocomplete(query: str):
     payload['search_request']['query']['query'] = query
     payload = json.dumps(payload)
 
-    response = requests.post(f'http://{blast_host}:{blast_port}/rest/_search', data=payload)
-    if response.status_code != 200:
-        abort(response.status_code)
+    blast_response = requests.post(f'http://{blast_host}:{blast_port}/rest/_search', data=payload)
+    if blast_response.status_code != 200:
+        abort(blast_response.status_code)
 
-    hits = json.loads(response.content.decode())
-    return jsonify(hits)
+    blast_response = json.loads(blast_response.content.decode())
+    if blast_response['success']:
+        hits = blast_response['search_result']['hits']
+        result = [_get_paper(h['id']) for h in hits]
+    else:
+        result = []
+
+    return jsonify(result)
 
 
 @app.route('/api/v1/references/<string:paper_id>')
