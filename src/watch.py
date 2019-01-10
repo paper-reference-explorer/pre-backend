@@ -44,7 +44,7 @@ def init_blast(host: str, port: int, file_glob: str) -> None:
 @cli.command()
 @click.option('--host', '-h', type=str, default='redis', help='host to connect to')
 @click.option('--port', '-p', type=int, default=6379, help='port to connect to')
-@click.option('--file-glob', '-fg', type=str, default='*.json', help='files to search for')
+@click.option('--file-glob', '-fg', type=str, default='*.csv', help='files to search for')
 def init_redis(host: str, port: int, file_glob: str) -> None:
     _wait_until_open(host, port)
     base_path = Path('data')
