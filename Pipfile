@@ -4,11 +4,12 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-requests = "*"
-nltk = "*"
+click = "*"
 gitpython = "*"
+nltk = "*"
+psycopg2-binary = "*"
 redis = "*"
-"psycopg2" = "*"
+requests = "*"
 
 [dev-packages]
 
