@@ -112,5 +112,4 @@ dmypy.json
 
 .idea
 data/
-search*
-mounts*
+mounts*/
