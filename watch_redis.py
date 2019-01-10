@@ -15,11 +15,10 @@ def main(host: str = 'redis', port: int = 6379, file_glob: str = '*.csv') -> Non
     wait_until_open(host, port)
     base_path = Path('data')
     input_path = base_path / 'input'
-
-    connection = redis.Redis(host=host, port=port, db=0)
-
     input_file_paths = input_path.glob(file_glob)
     input_file_paths = sorted(input_file_paths, reverse=False)
+
+    connection = redis.Redis(host=host, port=port, db=0)
 
     for input_file_path in input_file_paths:
         start_time = time.time()
