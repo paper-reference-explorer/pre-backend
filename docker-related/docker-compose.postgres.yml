@@ -3,10 +3,11 @@ services:
   postgres:
     image: postgres:11-alpine
     volumes:
-      - ./mounts/pgdata:/var/lib/postgresql/data
+      - ../mounts/pgdata:/var/lib/postgresql/data
   watcher:
     build:
-      context: .
+      context: ..
+      dockerfile: ./Dockerfile
       target: postgres
     depends_on:
       - postgres

@@ -12,11 +12,12 @@ services:
       BLAST_INDEX_DIR: /blastdata/node1/index
       BLAST_INDEX_MAPPING: /blastdata/index_mapping.json
     volumes:
-      - ./mounts/blastdata:/blastdata
+      - ../mounts/blastdata:/blastdata
     command: start
   watcher:
     build:
-      context: .
+      context: ..
+      dockerfile: ./Dockerfile
       target: blast
     depends_on:
       - blast

@@ -3,10 +3,11 @@ services:
   redis:
     image: redis:5-alpine
     volumes:
-      - ./mounts/redisdata:/data
+      - ../mounts/redisdata:/data
   watcher:
     build:
-      context: .
+      context: ..
+      dockerfile: ./Dockerfile
       target: redis
     depends_on:
       - redis
