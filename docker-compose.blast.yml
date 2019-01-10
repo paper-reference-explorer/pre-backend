@@ -12,7 +12,7 @@ services:
       BLAST_INDEX_DIR: /blastdata/node1/index
       BLAST_INDEX_MAPPING: /blastdata/index_mapping.json
     volumes:
-      - ./search:/search
+      - ./mounts/blastdata:/blastdata
     command: start
   watcher:
     build:
