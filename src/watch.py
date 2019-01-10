@@ -118,7 +118,8 @@ class SetupBlast(Setup):
 class SetupRedis(Setup):
     def __init__(self, host: str, port: int, file_glob: str):
         super().__init__(host, port, file_glob)
-        self._connection = redis.Redis(host=self._host, port=self._port, db=0)
+        redis_db = 0
+        self._connection = redis.Redis(host=self._host, port=self._port, db=redis_db)
 
     @property
     def _filename_skip_list(self) -> List[str]:

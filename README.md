@@ -14,3 +14,10 @@ The data will be stored within the `mounts/` folder. The API can be summoned by 
 ```bash
 sudo docker-compose -f docker-related/docker-compose.api.yml up
 ```
+
+
+## Development
+After setting up the data, start the debug flask server with
+```bash
+sudo docker-compose -f docker-related/docker-compose.api.yml -f docker-related/docker-compose.api.dev.yml up
+```
