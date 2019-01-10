@@ -6,14 +6,11 @@ services:
       dockerfile: ./Dockerfile
       target: api
     depends_on:
-      - redis
       - blast
+      - redis
+      - postgres
     ports:
       - 80:5000
-  redis:
-    image: redis:5-alpine
-    volumes:
-      - ../mounts/redisdata:/data
   blast:
     image: mosuka/blast:v0.3.2
     environment:
@@ -28,3 +25,11 @@ services:
     volumes:
       - ../mounts/blastdata:/blastdata
     command: start
+  redis:
+    image: redis:5-alpine
+    volumes:
+      - ../mounts/redisdata:/data
+  postgres:
+    image: postgres:11-alpine
+    volumes:
+      - ../mounts/pgdata:/var/lib/postgresql/data
