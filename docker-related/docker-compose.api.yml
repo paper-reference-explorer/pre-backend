@@ -1,0 +1,15 @@
+version: '3.7'
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: ./Dockerfile
+      target: api
+    depends_on:
+      - redis
+    ports:
+      - 80:5000
+  redis:
+    image: redis:5-alpine
+    volumes:
+      - ../mounts/redisdata:/data

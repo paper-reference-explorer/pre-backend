@@ -27,3 +27,7 @@ CMD ["python", "./watch.py", "init-redis"]
 FROM py as postgres
 COPY --from=converter /usr/src/app/data/output_for/postgres ./data/input
 CMD ["python", "./watch.py", "init-postgres"]
+
+FROM base as api
+COPY ./src/api.py .
+CMD ["python", "./api.py"]

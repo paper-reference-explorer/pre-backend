@@ -5,12 +5,12 @@ name = "pypi"
 
 [packages]
 click = "*"
+flask = "*"
 gitpython = "*"
 nltk = "*"
 psycopg2-binary = "*"
 redis = "*"
 requests = "*"
-flask = "*"
 
 [dev-packages]
 
