@@ -1,13 +1,13 @@
-import shutil
-from pathlib import Path
+import csv
 import logging
 import math
-from typing import TextIO, Tuple, Optional, List
 import re
-import csv
+import shutil
+from pathlib import Path
+from typing import TextIO, Tuple, Optional, List
 
-from git import Repo
 import nltk
+from git import Repo
 
 nltk.download('stopwords')
 
@@ -30,8 +30,12 @@ ids = set()
 
 def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
          n_max_splits: int = 7, max_elements_per_file: int = 15000, max_n_files: Optional[int] = 1,
-         clean_input: bool = False, clean_output_for_blast: bool = False, clean_output_for_redis: bool = False,
+         clean_input: bool = False, clean_output_for_blast: bool = False, clean_output_for_redis: bool = True,
          clean_output_for_postgres: bool = False) -> None:
+    # warning: redis recreates the tables and inserts elements
+    # if a file is cached it won't get added
+    # hence, for now, redis always has to run
+
     base_path = Path('data')
     input_path = base_path / 'input'
     output_path_base = base_path / 'output_for'
