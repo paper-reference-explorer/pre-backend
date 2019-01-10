@@ -14,7 +14,6 @@ def main(host: str = 'blast', port: int = 10002, file_glob: str = '*.json') -> N
     wait_until_open(host, port)
     base_path = Path('data')
     input_path = base_path / 'input'
-
     input_file_paths = input_path.glob(file_glob)
     input_file_paths = sorted(input_file_paths, reverse=False)
 

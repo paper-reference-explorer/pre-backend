@@ -16,6 +16,11 @@ def wait_until_open(host: str, port: int) -> None:
         time.sleep(1)
         result = sock.connect_ex(connection_info)
 
+    logger.info('Port is open')
+    for _ in range(5):
+        logger.info('.')
+        time.sleep(1)
+
     end_time = time.time()
     duration = end_time - start_time
     logging.info(f'Time passed: {duration:.02f}')
