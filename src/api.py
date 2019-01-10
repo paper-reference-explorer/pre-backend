@@ -1,3 +1,5 @@
+import copy
+import json
 from typing import Dict
 
 import redis
@@ -14,10 +16,10 @@ redis_host = 'redis'
 redis_port = 6379
 redis_db = 0
 
-blast_request = """{
+blast_request = {
     "search_request": {
         "query": {
-            "query": {0}
+            "query": None
         },
         "size": 10,
         "from": 0,
@@ -30,7 +32,7 @@ blast_request = """{
         "facets": {},
         "highlight": {}
     }
-}"""
+}
 
 
 @app.route('/')
@@ -46,11 +48,16 @@ def paper(paper_id: str):
 
 @app.route('/api/v1/autocomplete/<string:query>')
 def autocomplete(query: str):
-    return 'hi'
-    response = requests.post(f'http://{blast_host}:{blast_port}/rest/_search', json=blast_request.format(query))
+    payload = copy.deepcopy(blast_request)
+    payload['search_request']['query']['query'] = query
+    payload = json.dumps(payload)
+
+    response = requests.post(f'http://{blast_host}:{blast_port}/rest/_search', data=payload)
     if response.status_code != 200:
         abort(response.status_code)
-    return response.content
+
+    hits = json.loads(response.content.decode())
+    return jsonify(hits)
 
 
 @app.route('/api/v1/references/<string:paper_id>')

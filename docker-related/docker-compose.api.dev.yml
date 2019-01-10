@@ -1,0 +1,11 @@
+version: '3.7'
+services:
+  api:
+    command: ["flask", "run", "--host", "0.0.0.0"]
+    environment:
+      - FLASK_APP=src/api
+      - FLASK_DEBUG=true
+      - FLASK_ENV=development
+    restart: always
+    volumes:
+      - ../src:/usr/src/app/src
