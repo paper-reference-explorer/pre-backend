@@ -3,14 +3,14 @@ services:
   blast:
     image: mosuka/blast:v0.3.2
     environment:
-      BLAST_BIND_ADDR: search:10000
-      BLAST_GRPC_ADDR: search:10001
-      BLAST_HTTP_ADDR: search:10002
+      BLAST_BIND_ADDR: blast:10000
+      BLAST_GRPC_ADDR: blast:10001
+      BLAST_HTTP_ADDR: blast:10002
       BLAST_RAFT_NODE_ID: node1
-      BLAST_RAFT_DIR: /search/node1/raft
-      BLAST_STORE_DIR: /search/node1/store
-      BLAST_INDEX_DIR: /search/node1/index
-      BLAST_INDEX_MAPPING: /search/index_mapping.json
+      BLAST_RAFT_DIR: /blastdata/node1/raft
+      BLAST_STORE_DIR: /blastdata/node1/store
+      BLAST_INDEX_DIR: /blastdata/node1/index
+      BLAST_INDEX_MAPPING: /blastdata/index_mapping.json
     volumes:
       - ./search:/search
     command: start
