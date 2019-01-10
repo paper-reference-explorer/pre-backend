@@ -1,15 +1,16 @@
-This repository provides the backend for the paper-references-explorer website. It offers two basic functionalities: search for a paper and generation of the graph data for a set of papers.
+This repository provides the backend for the paper-references-explorer website. 
+It offers two basic functionalities: 
+search for a paper and generation of the graph data for a set of papers.
 
-## run example data
-`sudo docker-compose up`
-### test data storage
+To setup the data, execute the commands individually. Once the watcher exits, exit the command
+and run the next one.
 ```bash
-curl -X PUT 'http://127.0.0.1:10002/rest/A_my' -d @./example-data/doc_A.json
-curl -X GET 'http://127.0.0.1:10002/rest/A_my'
+sudo docker-compose -f docker-related/docker-compose.redis.yml up
+sudo docker-compose -f docker-related/docker-compose.postgres.yml up
+sudo docker-compose -f docker-related/docker-compose.blast.yml up
 ```
 
-### test search
+The data will be stored within the `mounts/` folder. The API can be summoned by calling
 ```bash
-curl -X POST 'http://127.0.0.1:10002/rest/_bulk' -d @./example-data/bulk_put_request.json
-curl -X POST 'http://127.0.0.1:10002/rest/_search?pretty-print=true' -d @./example-data/search_request.json
+sudo docker-compose -f docker-related/docker-compose.api.yml up
 ```
