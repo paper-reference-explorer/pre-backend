@@ -47,6 +47,9 @@ def hello_world():
 @app.route('/api/v1/paper/<string:paper_id>')
 def paper(paper_id: str):
     p = _get_paper(paper_id)
+    if p is None:
+        p = dict()
+    
     return jsonify(p)
 
 
