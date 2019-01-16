@@ -7,6 +7,7 @@ COPY ./Pipfile .
 COPY ./Pipfile.lock .
 RUN pipenv install --system --deploy --ignore-pipfile
 RUN apk del build-deps
+RUN python -c "import nltk; nltk.download('stopwords')"
 
 FROM base as converter
 COPY ./data ./data

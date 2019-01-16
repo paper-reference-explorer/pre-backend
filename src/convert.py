@@ -9,8 +9,6 @@ from typing import TextIO, Tuple, Optional, List
 import nltk
 from git import Repo
 
-nltk.download('stopwords')
-
 logging.basicConfig(format='%(asctime)s - %(levelname)-8s - %(name)s    - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 

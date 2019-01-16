@@ -49,7 +49,7 @@ def paper(paper_id: str):
     p = _get_paper(paper_id)
     if p is None:
         p = dict()
-    
+
     return jsonify(p)
 
 
