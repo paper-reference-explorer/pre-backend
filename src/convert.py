@@ -1,14 +1,14 @@
 import abc
 import csv
 import logging
-import re
 import shutil
 from pathlib import Path
 from typing import TextIO, Optional, List
 
 import click
-import nltk
 from git import Repo
+
+import processing
 
 logging.basicConfig(format='%(asctime)s - %(levelname)-8s - %(name)s    - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -17,17 +17,9 @@ id_index = 0
 references_index = 4
 authors_index = 5
 title_index = 6
-min_title_word_length = 3
-
-pattern_alpha = re.compile('[^a-zA-Z ]+')
-pattern_alphanumeric = re.compile('[\W]+')
-stop_words = set(nltk.corpus.stopwords.words('english'))
-stemmer = nltk.stem.SnowballStemmer('english')
-vocab = set()
 
 
 class Converter(abc.ABC):
-
     def __init__(self, output_path: Path, clean_folder: bool, folder_name: str):
         super().__init__()
         self.output_path = output_path / folder_name
@@ -94,9 +86,9 @@ class BlastConverter(Converter):
         self._is_first_line = False
 
     def _convert_to_document(self, fields: List[str]) -> str:
-        arxiv_id = clean_id(fields[id_index])
-        authors = clean_authors(fields[authors_index])
-        title = clean_title(fields[title_index])
+        arxiv_id = processing.clean_id(fields[id_index])
+        authors = processing.clean_authors(fields[authors_index])
+        title = processing.clean_title(fields[title_index])
         document = f"""{'' if self._is_first_line else ','}
       {{
         "type": "PUT",
@@ -151,9 +143,9 @@ class RedisConverter(Converter):
         self._is_first_line = False
 
     def _convert_to_document(self, fields: List[str]) -> List[str]:
-        arxiv_id = clean_id(fields[id_index])
-        authors = clean_field(fields[authors_index]).replace(',', ', ')
-        title = clean_field(fields[title_index])
+        arxiv_id = processing.clean_id(fields[id_index])
+        authors = processing.clean_field(fields[authors_index]).replace(',', ', ')
+        title = processing.clean_field(fields[title_index])
         document = [arxiv_id, self._current_year, authors, title]
         return document
 
@@ -192,9 +184,9 @@ VALUES""")
             self._is_first_line = False
 
     def _convert_to_document(self, fields: List[str]) -> Optional[str]:
-        arxiv_id = clean_id(fields[id_index])
+        arxiv_id = processing.clean_id(fields[id_index])
         refs = fields[references_index].split(',')
-        refs = [clean_id(r) for r in refs]
+        refs = [processing.clean_id(r) for r in refs]
         if len(refs) == 1 and refs[0] == '':
             return None
 
@@ -252,8 +244,8 @@ def clean_folder_maybe(path: Path, clean_folder: bool, recreate: bool = True) ->
 @click.command()
 def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
          n_max_splits: int = 7, max_elements_per_file: int = 15000, max_n_files: Optional[int] = 1,
-         clean_input: bool = False, clean_output_for_blast: bool = True, clean_output_for_redis: bool = True,
-         clean_output_for_postgres: bool = True) -> None:
+         clean_input: bool = False, clean_output_for_blast: bool = False, clean_output_for_redis: bool = False,
+         clean_output_for_postgres: bool = False) -> None:
     base_path = Path('data')
     input_path = base_path / 'input'
     clean_folder_maybe(input_path, clean_input, recreate=False)
@@ -303,39 +295,6 @@ def clone_repo(input_path, source_url):
         logger.info('Cloning repo...')
         Repo.clone_from(source_url, input_path)
         logger.info('Finished cloning repo')
-
-
-def clean_field(s: str) -> str:
-    return s.replace('"', '').replace('\t', ' ').replace('\\', '\\\\').strip()
-
-
-def clean_id(s: str) -> str:
-    s = clean_field(s)
-    s = pattern_alphanumeric.sub('_', s)
-    return s
-
-
-def clean_authors(s: str) -> str:
-    s = clean_field(s)
-    s = s.lower()
-    s = [w.strip().split('.')[-1]
-         for w in s.split(',')]
-    s = [pattern_alpha.sub(' ', w) for w in s]
-    [vocab.add(w) for w in s]
-    s = ' '.join(s)
-    return s
-
-
-def clean_title(s: str) -> str:
-    s = clean_field(s)
-    s = s.lower()
-    s = pattern_alpha.sub(' ', s)
-    s = [stemmer.stem(w)
-         for w in s.split()
-         if w not in stop_words and len(w) > min_title_word_length]
-    [vocab.add(w) for w in s]
-    s = ' '.join(s)
-    return s
 
 
 if __name__ == '__main__':

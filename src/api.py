@@ -7,6 +7,8 @@ import redis
 import requests
 from flask import Flask, jsonify, abort
 
+import processing
+
 app = Flask(__name__)
 redis_connection = redis.StrictRedis('redis', 6379, 0, charset='utf-8', decode_responses=True)
 
@@ -55,6 +57,7 @@ def paper(paper_id: str):
 
 @app.route('/api/v1/autocomplete/<string:query>')
 def autocomplete(query: str):
+    query = processing.clean_query(query)
     payload = copy.deepcopy(blast_request)
     payload['search_request']['query']['query'] = query
     payload = json.dumps(payload)
