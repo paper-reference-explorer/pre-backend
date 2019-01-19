@@ -8,9 +8,10 @@ from typing import TextIO, Optional, List
 import click
 from git import Repo
 
+import config
 import processing
 
-logging.basicConfig(format='%(asctime)s - %(levelname)-8s - %(name)s    - %(message)s', level=logging.DEBUG)
+logging.basicConfig(format=config.LOG_FORMAT, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 id_index = 0
@@ -20,20 +21,16 @@ title_index = 6
 
 
 class Converter(abc.ABC):
-    def __init__(self, output_path: Path, clean_folder: bool, folder_name: str):
+    def __init__(self, output_path: Path, clean_folder: bool):
         super().__init__()
-        self.output_path = output_path / folder_name
+        # self._service_config must be set by the implementation class
+        self.output_path = output_path / self._service_config.FOLDER_NAME
         clean_folder_maybe(self.output_path, clean_folder)
         self._file_index = None  # type: int
         self._current_year = None  # type: str
         self._n_elements_in_file = None  # type: int
         self._max_elements_in_file = 10000
         self._is_first_line = None  # type: bool
-
-    @property
-    @abc.abstractmethod
-    def _output_extension(self) -> str:
-        pass
 
     def input_file_opened(self, year: str) -> None:
         self._file_index = 1
@@ -43,7 +40,7 @@ class Converter(abc.ABC):
 
     @property
     def _output_file_path(self) -> str:
-        return str(self.output_path / f'{self._current_year}_{self._file_index}.{self._output_extension}')
+        return str(self.output_path / f'{self._current_year}_{self._file_index}.{self._service_config.FILE_EXTENSION}')
 
     @abc.abstractmethod
     def _open_output_file(self) -> None:
@@ -80,17 +77,15 @@ class Converter(abc.ABC):
 
 class BlastConverter(Converter):
     def __init__(self, output_path_base: Path, clean_folder: bool):
-        super().__init__(output_path_base, clean_folder, 'blast')
+        # set it here so the type is correctly recognized
+        self._service_config = config.BlastServiceConfig
+        super().__init__(output_path_base, clean_folder)
         self._current_file = None  # type: TextIO
-
-    @property
-    def _output_extension(self) -> str:
-        return 'json'
 
     def _open_output_file(self) -> None:
         self._is_first_line = True
         self._current_file = open(self._output_file_path, 'w')
-        self._current_file.write('[')
+        self._current_file.write(self._service_config.FILE_START)
 
     def _handle_fields(self, fields: List[str]) -> None:
         document = self._convert_to_document(fields)
@@ -101,23 +96,12 @@ class BlastConverter(Converter):
         arxiv_id = processing.clean_id(fields[id_index])
         authors = processing.clean_authors(fields[authors_index])
         title = processing.clean_title(fields[title_index])
-        document = f"""{'' if self._is_first_line else ','}
-      {{
-        "type": "PUT",
-        "document": {{
-          "id": "{arxiv_id}",
-          "fields": {{
-            "year": "{self._current_year}",
-            "authors": "{authors}",
-            "title": "{title}"
-          }}
-        }}
-      }}"""
+        document = self._service_config.FILE_ENTRY(self._is_first_line, arxiv_id, self._current_year, authors, title)
         return document
 
     def _close_file(self) -> None:
         if self._current_file is not None and not self._current_file.closed:
-            self._current_file.write('\n]')
+            self._current_file.write(self._service_config.FILE_END)
             self._current_file.close()
 
     def post_conversion(self) -> None:
@@ -126,19 +110,16 @@ class BlastConverter(Converter):
 
 class PostgresConverter(Converter):
     def __init__(self, output_path_base: Path, clean_folder: bool):
-        super().__init__(output_path_base, clean_folder, 'postgres')
+        # set it here so the type is correctly recognized
+        self._service_config = config.PostgresServiceConfig
+        super().__init__(output_path_base, clean_folder)
         self._current_file = None  # type: TextIO
         self._ids = set()
-
-    @property
-    def _output_extension(self) -> str:
-        return 'sql'
 
     def _open_output_file(self) -> None:
         self._is_first_line = True
         self._current_file = open(self._output_file_path, 'w')
-        self._current_file.write(f"""INSERT INTO refs (referencer, referencee)
-VALUES""")
+        self._current_file.write(self._service_config.INSERT_INTO_REFS_START)
 
     def _handle_fields(self, fields: List[str]) -> None:
         document = self._convert_to_document(fields)
@@ -155,53 +136,30 @@ VALUES""")
 
         self._ids.add(arxiv_id)
         [self._ids.add(r) for r in refs]
-        document = [('' if self._is_first_line and index == 0 else ',\n      ') + f" ('{arxiv_id}', '{r}')"
-                    for index, r in enumerate(refs)]
-        document = ''.join(document)
+        document = self._service_config.INSERT_INTO_REFS_ENTRY(self._is_first_line, arxiv_id, refs)
         return document
 
     def _close_file(self) -> None:
-        self._current_file.write('\n;')
+        self._current_file.write(self._service_config.INSERT_INTO_REFS_END)
         self._current_file.close()
 
     def post_conversion(self) -> None:
-        create_tables_file_path = self.output_path / 'create_tables.sql'
+        create_tables_file_path = self.output_path / self._service_config.CREATE_TABLE_FILE_NAME
         with open(str(create_tables_file_path), 'w') as create_tables_file:
-            create_tables_file.write("""DROP TABLE IF EXISTS refs;
-DROP TABLE IF EXISTS papers;
+            create_tables_file.write(config.PostgresServiceConfig.CREATE_TABLES_SQL)
 
-CREATE TABLE IF NOT EXISTS papers
-(
-  ID VARCHAR(64) PRIMARY KEY
-);
-
-CREATE TABLE IF NOT EXISTS refs
-(
-  referencer VARCHAR(64) NOT NULL,
-  referencee VARCHAR(64) NOT NULL,
-  FOREIGN KEY (referencer) REFERENCES papers (ID),
-  FOREIGN KEY (referencee) REFERENCES papers (ID),
-  PRIMARY KEY (referencer, referencee)
-);""")
-
-        insert_into_papers_file_path = self.output_path / 'insert_into_papers.sql'
+        insert_into_papers_file_path = self.output_path / self._service_config.INSERT_INTO_PAPERS_FILE_NAME
         with open(str(insert_into_papers_file_path), 'w') as insert_into_papers_file:
-            document = [('' if index == 0 else ',\n      ') + f" ('{r}')"
-                        for index, r in enumerate(sorted(list(self._ids)))]
-            document = ''.join(document)
-            insert_into_papers_file.write(f"""INSERT INTO papers (ID)
-VALUES{document}
-;""")
+            document = config.PostgresServiceConfig.INSERT_INTO_PAPERS_SQL(self._ids)
+            insert_into_papers_file.write(document)
 
 
 class RedisConverter(Converter):
     def __init__(self, output_path_base: Path, clean_folder: bool):
-        super().__init__(output_path_base, clean_folder, 'redis')
+        # set it here so the type is correctly recognized
+        self._service_config = config.RedisServiceConfig
+        super().__init__(output_path_base, clean_folder)
         self._writer = None  # type: csv.writer
-
-    @property
-    def _output_extension(self) -> str:
-        return 'csv'
 
     def _open_output_file(self) -> None:
         self._is_first_line = True
@@ -239,7 +197,7 @@ def clean_folder_maybe(path: Path, clean_folder: bool, recreate: bool = True) ->
 # only blast makes sense to cache
 @click.command()
 def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
-         n_max_splits: int = 7, max_elements_per_file: int = 10000, max_n_files: Optional[int] = 1,
+         n_max_splits: int = 7, max_elements_per_file: int = 10000, max_n_files: Optional[int] = 2,
          clean_input: bool = False, clean_output_for_blast: bool = False, clean_output_for_redis: bool = False,
          clean_output_for_postgres: bool = False) -> None:
     base_path = Path('data')

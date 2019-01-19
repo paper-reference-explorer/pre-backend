@@ -7,11 +7,11 @@ from pathlib import Path
 from typing import List, Tuple
 
 import click
-import psycopg2
-import redis
 import requests
 
-logging.basicConfig(format='%(asctime)s - %(levelname)-8s - %(name)s - %(message)s', level=logging.DEBUG)
+import config
+
+logging.basicConfig(format=config.LOG_FORMAT, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -21,11 +21,9 @@ def cli():
 
 
 class Setup(abc.ABC):
-    def __init__(self, host: str, port: int, file_glob: str, folder_name: str):
-        self._host = host
-        self._port = port
-        self._file_glob = file_glob
-        self._input_path, self._input_file_paths = self._get_paths(folder_name)
+    def __init__(self):
+        # self._service_config must be set by the implementation class
+        self._input_path, self._input_file_paths = self._get_paths()
         self._wait_until_open()
 
     @property
@@ -41,23 +39,23 @@ class Setup(abc.ABC):
     def _post_setup(self) -> None:
         pass
 
-    def _get_paths(self, folder_name: str) -> Tuple[Path, List[Path]]:
+    def _get_paths(self) -> Tuple[Path, List[Path]]:
         base_path = Path('data')
-        input_path = base_path / 'output_for' / folder_name
-        input_file_paths = input_path.glob(self._file_glob)
+        input_path = base_path / 'output_for' / self._service_config.FOLDER_NAME
+        input_file_paths = input_path.glob(self._service_config.FILE_GLOB)
         input_file_paths = sorted(input_file_paths, reverse=True)
         return input_path, input_file_paths
 
     def _wait_until_open(self) -> None:
         start_time = time.time()
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        connection_info = (self._host, self._port)
+        connection_info = (self._service_config.HOST, self._service_config.PORT)
         try:
             result = sock.connect_ex(connection_info)
         except socket.gaierror as error:
             if error.errno == -2:
-                logger.error(f'Name or service "{self._host}" not known. Either the docker-compose file is wrong'
-                             + ' or this file is run outside of docker.')
+                logger.error(f'Name or service "{self._service_config.HOST}" not known.'
+                             f' Either the docker-compose file is wrong or this file is run outside of docker.')
                 exit(-2)
             else:
                 raise error
@@ -100,52 +98,34 @@ class Setup(abc.ABC):
 
 
 class SetupBlast(Setup):
-    def __init__(self, host: str, port: int, file_glob: str):
-        super().__init__(host, port, file_glob, 'blast')
+    def __init__(self):
+        # set it here so the type is correctly recognized
+        self._service_config = config.BlastServiceConfig
+        super().__init__()
 
     @property
     def _filename_skip_list(self) -> List[str]:
         return []
 
     def _step(self, file: Path) -> None:
-        response = requests.post(f'http://{self._host}:{self._port}/rest/_bulk', data=open(str(file), 'rb'))
+        response = requests.post(self._service_config.POST_URL, data=open(str(file), 'rb'))
         logger.info(f'{response.status_code}: {response.content}')
 
     def _post_setup(self) -> None:
         pass
 
 
-class SetupRedis(Setup):
-    def __init__(self, host: str, port: int, file_glob: str):
-        super().__init__(host, port, file_glob, 'redis')
-        redis_db = 0
-        self._connection = redis.Redis(host=self._host, port=self._port, db=redis_db)
-
-    @property
-    def _filename_skip_list(self) -> List[str]:
-        return []
-
-    def _step(self, file: Path) -> None:
-        with open(str(file), newline='') as input_file:
-            file_reader = csv.reader(input_file)
-            for arxiv_id, year, authors, title in file_reader:
-                data = {'year': year, 'authors': authors, 'title': title}
-                self._connection.hmset(arxiv_id, data)
-
-    def _post_setup(self) -> None:
-        pass
-
-
 class SetupPostgres(Setup):
-    def __init__(self, host: str, port: int, file_glob: str):
-        super().__init__(host, port, file_glob, 'postgres')
-        self._connection = psycopg2.connect(f"host='{self._host}' port={self._port} dbname=postgres"
-                                            + " user=postgres password=mysecretpassword")
+    def __init__(self):
+        # set it here so the type is correctly recognized
+        self._service_config = config.PostgresServiceConfig
+        super().__init__()
+        self._connection = self._service_config.create_connection()
         self._read_priority_files()
 
     @property
     def _filename_skip_list(self) -> List[str]:
-        return ['create_tables.sql', 'insert_into_papers.sql']
+        return [self._service_config.CREATE_TABLE_FILE_NAME, self._service_config.INSERT_INTO_PAPERS_FILE_NAME]
 
     def _step(self, file: Path) -> None:
         cursor = self._connection.cursor()
@@ -166,38 +146,48 @@ class SetupPostgres(Setup):
             cursor.close()
 
 
-@cli.command()
-@click.option('--host', '-h', type=str, default='blast', help='host to connect to')
-@click.option('--port', '-p', type=int, default=10002, help='port to connect to')
-@click.option('--file-glob', '-fg', type=str, default='*.json', help='files to search for')
-def init_blast(host: str, port: int, file_glob: str) -> None:
-    SetupBlast(host, port, file_glob).run()
+class SetupRedis(Setup):
+    def __init__(self):
+        # set it here so the type is correctly recognized
+        self._service_config = config.RedisServiceConfig
+        super().__init__()
+        self._connection = self._service_config.create_connection()
+
+    @property
+    def _filename_skip_list(self) -> List[str]:
+        return []
+
+    def _step(self, file: Path) -> None:
+        with open(str(file), newline='') as input_file:
+            file_reader = csv.reader(input_file)
+            for arxiv_id, year, authors, title in file_reader:
+                data = {'year': year, 'authors': authors, 'title': title}
+                self._connection.hmset(arxiv_id, data)
+
+    def _post_setup(self) -> None:
+        pass
 
 
 @cli.command()
-@click.option('--host', '-h', type=str, default='redis', help='host to connect to')
-@click.option('--port', '-p', type=int, default=6379, help='port to connect to')
-@click.option('--file-glob', '-fg', type=str, default='*.csv', help='files to search for')
-def init_redis(host: str, port: int, file_glob: str) -> None:
-    SetupRedis(host, port, file_glob).run()
+def init_blast() -> None:
+    SetupBlast().run()
 
 
 @cli.command()
-@click.option('--host', '-h', type=str, default='postgres', help='host to connect to')
-@click.option('--port', '-p', type=int, default=5432, help='port to connect to')
-@click.option('--file-glob', '-fg', type=str, default='*.sql', help='files to search for')
-def init_postgres(host: str, port: int, file_glob: str) -> None:
-    SetupPostgres(host, port, file_glob).run()
+def init_postgres() -> None:
+    SetupPostgres().run()
 
 
 @cli.command()
-@click.option('--postgres-host', '-ph', type=str, default='postgres', help='host of postgres to connect to')
-@click.option('--postgres-port', '-pp', type=int, default=5432, help='port of postgres to connect to')
-@click.option('--redis-host', '-rh', type=str, default='redis', help='host of redis to connect to')
-@click.option('--redis-port', '-rp', type=int, default=6379, help='port of redis to connect to')
-def count_referenced_by(postgres_host: str, postgres_port: int, redis_host: str, redis_port: int) -> None:
-    postgres_connection = psycopg2.connect(f"host='{postgres_host}' port={postgres_port} dbname=postgres"
-                                           + " user=postgres password=mysecretpassword")
+def init_redis() -> None:
+    SetupRedis().run()
+
+
+@cli.command()
+def count_referenced_by() -> None:
+    postgres_service_config = config.PostgresServiceConfig
+    postgres_connection = postgres_service_config.create_connection()
+
     sql = """
 SELECT p.ID, COUNT(*)  
 FROM papers p
@@ -207,8 +197,8 @@ GROUP BY p.ID"""
     cursor = postgres_connection.cursor()
     cursor.execute(sql)
 
-    redis_db = 0
-    redis_connection = redis.Redis(host=redis_host, port=redis_port, db=redis_db)
+    redis_service_config = config.RedisServiceConfig
+    redis_connection = redis_service_config.create_connection()
     for paper_id, referenced_count in cursor:
         redis_connection.hsetnx(paper_id, 'referenced_by_n', referenced_count)
     postgres_connection.commit()
