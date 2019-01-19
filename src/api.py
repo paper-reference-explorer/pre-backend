@@ -38,7 +38,7 @@ blast_request = {
 
 postgres_connection_string = "host='postgres' port=5432 dbname=postgres user=postgres password=mysecretpassword"
 postgres_connection = psycopg2.connect(postgres_connection_string)
-postgres_select_sql = "SELECT referencee FROM refs WHERE referencer = %(paper_id)s"
+postgres_select_sql = "SELECT referencer FROM refs WHERE referencee = %(paper_id)s"
 
 
 @app.route('/')
@@ -77,7 +77,7 @@ def autocomplete(query: str):
     return jsonify(result)
 
 
-@app.route('/api/v1/references/<string:paper_id>')
+@app.route('/api/v1/referenced_by/<string:paper_id>')
 def references(paper_id: str):
     cursor = postgres_connection.cursor()
 
