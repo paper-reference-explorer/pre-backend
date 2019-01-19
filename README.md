@@ -1,20 +1,30 @@
 This repository provides the backend for the paper-references-explorer website. 
-It offers two basic functionalities: 
-search for a paper and generation of the graph data for a set of papers.
 
-To setup the data, execute the commands individually. Once the watcher exits, exit the command
-and run the next one.
+
+
+## Setup
+To run the setup in parallel, run:
 ```bash
-sudo docker-compose -f docker-related/docker-compose.redis.yml up
-sudo docker-compose -f docker-related/docker-compose.postgres.yml up
-sudo docker-compose -f docker-related/docker-compose.blast.yml up
+sudo docker-compose -f docker-related/docker-compose.services.yml -f docker-related/docker-compose.setup.step1.yml build; sudo docker-compose -f docker-related/docker-compose.services.yml -f docker-related/docker-compose.setup.step2.yml build
+sudo docker-compose -f docker-related/docker-compose.services.yml -f docker-related/docker-compose.setup.step1.yml up
+sudo docker-compose -f docker-related/docker-compose.services.yml -f docker-related/docker-compose.setup.step2.yml up
 ```
 
+To run the setup automatically, sequentially and with correct exit codes, run:
+```bash
+sudo docker-compose -f docker-related/docker-compose.services.yml -f docker-related/docker-compose.setup.step1.yml build
+sudo docker-compose -f docker-related/docker-compose.services.yml -f docker-related/docker-compose.setup.step2.yml build
+sudo docker-compose -f docker-related/docker-compose.services.yml -f docker-related/docker-compose.setup.step1.yml up --abort-on-container-exit --exit-code-from watcher-blast blast watcher-blast
+sudo docker-compose -f docker-related/docker-compose.services.yml -f docker-related/docker-compose.setup.step1.yml up --abort-on-container-exit --exit-code-from watcher-postgres postgres watcher-postgres
+sudo docker-compose -f docker-related/docker-compose.services.yml -f docker-related/docker-compose.setup.step1.yml up --abort-on-container-exit --exit-code-from watcher-redis redis watcher-redis
+sudo docker-compose -f docker-related/docker-compose.services.yml -f docker-related/docker-compose.setup.step2.yml up --abort-on-container-exit --exit-code-from watcher-count-referenced-by postgres redis watcher-count-referenced-by
+```
+
+## Static
 The data will be stored within the `mounts/` folder. The API can be summoned by calling
 ```bash
 sudo docker-compose -f docker-related/docker-compose.api.yml up
 ```
-
 
 ## Development
 After setting up the data, start the debug flask server with

@@ -27,7 +27,7 @@ class Converter(abc.ABC):
         self._file_index = None  # type: int
         self._current_year = None  # type: str
         self._n_elements_in_file = None  # type: int
-        self._max_elements_in_file = 100
+        self._max_elements_in_file = 10000
         self._is_first_line = None  # type: bool
 
     @property

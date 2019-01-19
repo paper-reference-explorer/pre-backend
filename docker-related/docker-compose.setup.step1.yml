@@ -24,12 +24,3 @@ services:
     command: ["python", "./src/watch.py", "init-redis"]
     depends_on:
       - redis
-#  watcher-count-referenced-by:
-#    build:
-#      context: ..
-#      dockerfile: ./Dockerfile
-#      target: setup
-#    command: ["python", "./src/watch.py", "count-referenced-by"]
-#    depends_on:
-#      - postgres
-#      - redis
