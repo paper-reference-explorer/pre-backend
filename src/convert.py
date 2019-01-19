@@ -31,22 +31,30 @@ class Converter(abc.ABC):
         self._n_elements_in_file = None  # type: int
         self._max_elements_in_file = 10000
         self._is_first_line = None  # type: bool
+        self._is_skipping_file = None  # type: bool
+        self._skipped_once = False
 
     def input_file_opened(self, year: str) -> None:
         self._file_index = 1
         self._n_elements_in_file = 0
         self._current_year = year
-        self._open_output_file()
+        self._is_skipping_file = self._output_file_path.exists()
+        if self._is_skipping_file:
+            self._skipped_once = True
+        else:
+            self._open_output_file()
 
     @property
-    def _output_file_path(self) -> str:
-        return str(self.output_path / f'{self._current_year}_{self._file_index}.{self._service_config.FILE_EXTENSION}')
+    def _output_file_path(self) -> Path:
+        return self.output_path / f'{self._current_year}_{self._file_index}.{self._service_config.FILE_EXTENSION}'
 
     @abc.abstractmethod
     def _open_output_file(self) -> None:
         pass
 
     def handle_line(self, fields: List[str]) -> None:
+        if self._is_skipping_file:
+            return
         self._n_elements_in_file += 1
         if self._n_elements_in_file >= self._max_elements_in_file:
             self._close_output_file()
@@ -61,9 +69,13 @@ class Converter(abc.ABC):
         pass
 
     def input_file_closed(self) -> None:
+        if self._is_skipping_file:
+            return
         self._close_file()
 
     def _close_output_file(self) -> None:
+        if self._is_skipping_file:
+            return
         self._close_file()
 
     @abc.abstractmethod
@@ -84,7 +96,7 @@ class BlastConverter(Converter):
 
     def _open_output_file(self) -> None:
         self._is_first_line = True
-        self._current_file = open(self._output_file_path, 'w')
+        self._current_file = open(str(self._output_file_path), 'w')
         self._current_file.write(self._service_config.FILE_START)
 
     def _handle_fields(self, fields: List[str]) -> None:
@@ -118,7 +130,7 @@ class PostgresConverter(Converter):
 
     def _open_output_file(self) -> None:
         self._is_first_line = True
-        self._current_file = open(self._output_file_path, 'w')
+        self._current_file = open(str(self._output_file_path), 'w')
         self._current_file.write(self._service_config.INSERT_INTO_REFS_START)
 
     def _handle_fields(self, fields: List[str]) -> None:
@@ -144,6 +156,9 @@ class PostgresConverter(Converter):
         self._current_file.close()
 
     def post_conversion(self) -> None:
+        if self._skipped_once:
+            logger.warning('Skipping post conversion for postgres because at least one input file was skipped.')
+            return
         create_tables_file_path = self.output_path / self._service_config.CREATE_TABLE_FILE_NAME
         with open(str(create_tables_file_path), 'w') as create_tables_file:
             create_tables_file.write(config.PostgresServiceConfig.CREATE_TABLES_SQL)
@@ -163,7 +178,7 @@ class RedisConverter(Converter):
 
     def _open_output_file(self) -> None:
         self._is_first_line = True
-        output_file = open(self._output_file_path, 'w', newline='')
+        output_file = open(str(self._output_file_path), 'w', newline='')
         self._writer = csv.writer(output_file)
 
     def _handle_fields(self, fields: List[str]) -> None:
@@ -197,7 +212,7 @@ def clean_folder_maybe(path: Path, clean_folder: bool, recreate: bool = True) ->
 # only blast makes sense to cache
 @click.command()
 def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
-         n_max_splits: int = 7, max_elements_per_file: int = 10000, max_n_files: Optional[int] = 2,
+         n_max_splits: int = 7, max_elements_per_file: int = 10000, max_n_files: Optional[int] = 3,
          clean_input: bool = False, clean_output_for_blast: bool = False, clean_output_for_redis: bool = False,
          clean_output_for_postgres: bool = False) -> None:
     base_path = Path('data')
@@ -214,7 +229,7 @@ def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
 
     n_total_elements = 0
     input_file_paths = input_path.glob('*.csv')
-    input_file_paths = sorted(input_file_paths, reverse=False)
+    input_file_paths = sorted(input_file_paths, reverse=True)
     for index, input_file_path in enumerate(input_file_paths):
         if max_n_files is not None and index >= max_n_files:
             break
