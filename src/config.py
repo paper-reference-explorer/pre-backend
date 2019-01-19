@@ -5,6 +5,17 @@ import psycopg2
 import redis
 
 
+class InputConfig:
+    SOURCE_URL = 'https://github.com/paperscape/paperscape-data.git'
+    N_MAX_SPLITS = 7
+    ID_INDEX = 0
+    REFERENCES_INDEX = 4
+    AUTHORS_INDEX = 5
+    TITLE_INDEX = 6
+    INPUT_FOLDER_NAME = 'input'
+    FILE_GLOB = '*.csv'
+
+
 class ServiceConfig(abc.ABC):
 
     @property

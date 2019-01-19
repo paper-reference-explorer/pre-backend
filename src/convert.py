@@ -14,22 +14,17 @@ import processing
 logging.basicConfig(format=config.LOG_FORMAT, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-id_index = 0
-references_index = 4
-authors_index = 5
-title_index = 6
-
 
 class Converter(abc.ABC):
-    def __init__(self, output_path: Path, clean_folder: bool):
+    def __init__(self, output_path: Path, clean_folder: bool, max_elements_per_file: int):
         super().__init__()
         # self._service_config must be set by the implementation class
         self.output_path = output_path / self._service_config.FOLDER_NAME
         clean_folder_maybe(self.output_path, clean_folder)
+        self._max_elements_in_file = max_elements_per_file
         self._file_index = None  # type: int
         self._current_year = None  # type: str
         self._n_elements_in_file = None  # type: int
-        self._max_elements_in_file = 10000
         self._is_first_line = None  # type: bool
         self._is_skipping_file = None  # type: bool
         self._skipped_once = False
@@ -88,10 +83,10 @@ class Converter(abc.ABC):
 
 
 class BlastConverter(Converter):
-    def __init__(self, output_path_base: Path, clean_folder: bool):
+    def __init__(self, output_path_base: Path, clean_folder: bool, max_elements_per_file: int):
         # set it here so the type is correctly recognized
         self._service_config = config.BlastServiceConfig
-        super().__init__(output_path_base, clean_folder)
+        super().__init__(output_path_base, clean_folder, max_elements_per_file)
         self._current_file = None  # type: TextIO
 
     def _open_output_file(self) -> None:
@@ -105,9 +100,9 @@ class BlastConverter(Converter):
         self._is_first_line = False
 
     def _convert_to_document(self, fields: List[str]) -> str:
-        arxiv_id = processing.clean_id(fields[id_index])
-        authors = processing.clean_authors(fields[authors_index])
-        title = processing.clean_title(fields[title_index])
+        arxiv_id = processing.clean_id(fields[config.InputConfig.ID_INDEX])
+        authors = processing.clean_authors(fields[config.InputConfig.AUTHORS_INDEX])
+        title = processing.clean_title(fields[config.InputConfig.TITLE_INDEX])
         document = self._service_config.FILE_ENTRY(self._is_first_line, arxiv_id, self._current_year, authors, title)
         return document
 
@@ -121,10 +116,10 @@ class BlastConverter(Converter):
 
 
 class PostgresConverter(Converter):
-    def __init__(self, output_path_base: Path, clean_folder: bool):
+    def __init__(self, output_path_base: Path, clean_folder: bool, max_elements_per_file: int):
         # set it here so the type is correctly recognized
         self._service_config = config.PostgresServiceConfig
-        super().__init__(output_path_base, clean_folder)
+        super().__init__(output_path_base, clean_folder, max_elements_per_file)
         self._current_file = None  # type: TextIO
         self._ids = set()
 
@@ -140,8 +135,8 @@ class PostgresConverter(Converter):
             self._is_first_line = False
 
     def _convert_to_document(self, fields: List[str]) -> Optional[str]:
-        arxiv_id = processing.clean_id(fields[id_index])
-        refs = fields[references_index].split(',')
+        arxiv_id = processing.clean_id(fields[config.InputConfig.ID_INDEX])
+        refs = fields[config.InputConfig.REFERENCES_INDEX].split(',')
         refs = [processing.clean_id(r) for r in refs]
         if len(refs) == 1 and refs[0] == '':
             return None
@@ -170,10 +165,10 @@ class PostgresConverter(Converter):
 
 
 class RedisConverter(Converter):
-    def __init__(self, output_path_base: Path, clean_folder: bool):
+    def __init__(self, output_path_base: Path, clean_folder: bool, max_elements_per_file: int):
         # set it here so the type is correctly recognized
         self._service_config = config.RedisServiceConfig
-        super().__init__(output_path_base, clean_folder)
+        super().__init__(output_path_base, clean_folder, max_elements_per_file)
         self._writer = None  # type: csv.writer
 
     def _open_output_file(self) -> None:
@@ -187,9 +182,9 @@ class RedisConverter(Converter):
         self._is_first_line = False
 
     def _convert_to_document(self, fields: List[str]) -> List[str]:
-        arxiv_id = processing.clean_id(fields[id_index])
-        authors = processing.clean_field(fields[authors_index]).replace(',', ', ')
-        title = processing.clean_field(fields[title_index])
+        arxiv_id = processing.clean_id(fields[config.InputConfig.ID_INDEX])
+        authors = processing.clean_field(fields[config.InputConfig.AUTHORS_INDEX]).replace(',', ', ')
+        title = processing.clean_field(fields[config.InputConfig.TITLE_INDEX])
         document = [arxiv_id, self._current_year, authors, title]
         return document
 
@@ -209,26 +204,25 @@ def clean_folder_maybe(path: Path, clean_folder: bool, recreate: bool = True) ->
         path.mkdir(exist_ok=True, parents=True)
 
 
-# only blast makes sense to cache
 @click.command()
 def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
          n_max_splits: int = 7, max_elements_per_file: int = 10000, max_n_files: Optional[int] = 3,
          clean_input: bool = False, clean_output_for_blast: bool = False, clean_output_for_redis: bool = False,
          clean_output_for_postgres: bool = False) -> None:
     base_path = Path('data')
-    input_path = base_path / 'input'
+    input_path = base_path / config.InputConfig.INPUT_FOLDER_NAME
     clean_folder_maybe(input_path, clean_input, recreate=False)
-    clone_repo(input_path, source_url)
+    clone_repo(input_path)
 
     output_path_base = base_path / 'output_for'
     converters = [
-        BlastConverter(output_path_base, clean_output_for_blast),
-        RedisConverter(output_path_base, clean_output_for_redis),
-        PostgresConverter(output_path_base, clean_output_for_postgres)
+        BlastConverter(output_path_base, clean_output_for_blast, max_elements_per_file),
+        RedisConverter(output_path_base, clean_output_for_redis, max_elements_per_file),
+        PostgresConverter(output_path_base, clean_output_for_postgres, max_elements_per_file)
     ]
 
     n_total_elements = 0
-    input_file_paths = input_path.glob('*.csv')
+    input_file_paths = input_path.glob(config.InputConfig.FILE_GLOB)
     input_file_paths = sorted(input_file_paths, reverse=True)
     for index, input_file_path in enumerate(input_file_paths):
         if max_n_files is not None and index >= max_n_files:
@@ -247,7 +241,7 @@ def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
                     continue
 
                 n_elements_in_file += 1
-                fields = line.split(';', n_max_splits)
+                fields = line.split(';', config.InputConfig.N_MAX_SPLITS)
                 [c.handle_line(fields) for c in converters]
 
             [c.input_file_closed() for c in converters]
@@ -259,10 +253,10 @@ def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
     logging.info(f'N elements converted in total: {n_total_elements}')
 
 
-def clone_repo(input_path, source_url):
+def clone_repo(input_path: Path) -> None:
     if not input_path.exists():
         logger.info('Cloning repo...')
-        Repo.clone_from(source_url, input_path)
+        Repo.clone_from(config.InputConfig.SOURCE_URL, input_path)
         logger.info('Finished cloning repo')
 
 
