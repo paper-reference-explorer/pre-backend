@@ -100,10 +100,10 @@ class BlastConverter(Converter):
         self._is_first_line = False
 
     def _convert_to_document(self, fields: List[str]) -> str:
-        arxiv_id = processing.clean_id(fields[config.InputConfig.ID_INDEX])
+        paper_id = processing.clean_id(fields[config.InputConfig.ID_INDEX])
         authors = processing.clean_authors(fields[config.InputConfig.AUTHORS_INDEX])
         title = processing.clean_title(fields[config.InputConfig.TITLE_INDEX])
-        document = self._service_config.FILE_ENTRY(self._is_first_line, arxiv_id, self._current_year, authors, title)
+        document = self._service_config.FILE_ENTRY(self._is_first_line, paper_id, self._current_year, authors, title)
         return document
 
     def _close_file(self) -> None:
@@ -135,15 +135,15 @@ class PostgresConverter(Converter):
             self._is_first_line = False
 
     def _convert_to_document(self, fields: List[str]) -> Optional[str]:
-        arxiv_id = processing.clean_id(fields[config.InputConfig.ID_INDEX])
+        paper_id = processing.clean_id(fields[config.InputConfig.ID_INDEX])
         refs = fields[config.InputConfig.REFERENCES_INDEX].split(',')
         refs = [processing.clean_id(r) for r in refs]
         if len(refs) == 1 and refs[0] == '':
             return None
 
-        self._ids.add(arxiv_id)
+        self._ids.add(paper_id)
         [self._ids.add(r) for r in refs]
-        document = self._service_config.INSERT_INTO_REFS_ENTRY(self._is_first_line, arxiv_id, refs)
+        document = self._service_config.INSERT_INTO_REFS_ENTRY(self._is_first_line, paper_id, refs)
         return document
 
     def _close_file(self) -> None:
@@ -182,10 +182,10 @@ class RedisConverter(Converter):
         self._is_first_line = False
 
     def _convert_to_document(self, fields: List[str]) -> List[str]:
-        arxiv_id = processing.clean_id(fields[config.InputConfig.ID_INDEX])
+        paper_id = processing.clean_id(fields[config.InputConfig.ID_INDEX])
         authors = processing.clean_field(fields[config.InputConfig.AUTHORS_INDEX]).replace(',', ', ')
         title = processing.clean_field(fields[config.InputConfig.TITLE_INDEX])
-        document = [arxiv_id, self._current_year, authors, title]
+        document = [paper_id, self._current_year, authors, title]
         return document
 
     def _close_file(self) -> None:

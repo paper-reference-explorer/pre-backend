@@ -160,9 +160,9 @@ class SetupRedis(Setup):
     def _step(self, file: Path) -> None:
         with open(str(file), newline='') as input_file:
             file_reader = csv.reader(input_file)
-            for arxiv_id, year, authors, title in file_reader:
+            for paper_id, year, authors, title in file_reader:
                 data = {'year': year, 'authors': authors, 'title': title}
-                self._connection.hmset(arxiv_id, data)
+                self._connection.hmset(paper_id, data)
 
     def _post_setup(self) -> None:
         pass
