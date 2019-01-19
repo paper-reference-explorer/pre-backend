@@ -24,22 +24,53 @@ class Converter(abc.ABC):
         super().__init__()
         self.output_path = output_path / folder_name
         clean_folder_maybe(self.output_path, clean_folder)
+        self._file_index = None  # type: int
+        self._current_year = None  # type: str
+        self._n_elements_in_file = None  # type: int
+        self._max_elements_in_file = 100
+        self._is_first_line = None  # type: bool
 
     @property
     @abc.abstractmethod
     def _output_extension(self) -> str:
         pass
 
-    @abc.abstractmethod
-    def open_input_file(self, year: str) -> None:
-        pass
+    def input_file_opened(self, year: str) -> None:
+        self._file_index = 1
+        self._n_elements_in_file = 0
+        self._current_year = year
+        self._open_output_file()
+
+    @property
+    def _output_file_path(self) -> str:
+        return str(self.output_path / f'{self._current_year}_{self._file_index}.{self._output_extension}')
 
     @abc.abstractmethod
-    def handle_line(self, line: str) -> None:
+    def _open_output_file(self) -> None:
         pass
 
+    def handle_line(self, fields: List[str]) -> None:
+        self._n_elements_in_file += 1
+        if self._n_elements_in_file >= self._max_elements_in_file:
+            self._close_output_file()
+            self._n_elements_in_file = 0
+            self._file_index += 1
+            self._open_output_file()
+
+        self._handle_fields(fields)
+
     @abc.abstractmethod
-    def close_input_file(self) -> None:
+    def _handle_fields(self, fields: List[str]) -> None:
+        pass
+
+    def input_file_closed(self) -> None:
+        self._close_file()
+
+    def _close_output_file(self) -> None:
+        self._close_file()
+
+    @abc.abstractmethod
+    def _close_file(self) -> None:
         pass
 
     @abc.abstractmethod
@@ -50,37 +81,18 @@ class Converter(abc.ABC):
 class BlastConverter(Converter):
     def __init__(self, output_path_base: Path, clean_folder: bool):
         super().__init__(output_path_base, clean_folder, 'blast')
-        self._file_index = None  # type: int
         self._current_file = None  # type: TextIO
-        self._current_year = None  # type: str
-        self._n_elements_in_file = None  # type: int
-        self._max_elements_in_file = 15000
-        self._is_first_line = None  # type: bool
 
     @property
     def _output_extension(self) -> str:
         return 'json'
 
-    def open_input_file(self, year: str) -> None:
-        self._file_index = 1
-        self._n_elements_in_file = 0
-        self._current_year = year
-        self._open_output_file()
-
     def _open_output_file(self) -> None:
-        output_file_path = self.output_path / f'{self._current_year}_{self._file_index}.{self._output_extension}'
-        self._current_file = open(str(output_file_path), 'w')
-        self._current_file.write('[')
         self._is_first_line = True
+        self._current_file = open(self._output_file_path, 'w')
+        self._current_file.write('[')
 
-    def handle_line(self, fields: List[str]) -> None:
-        self._n_elements_in_file += 1
-        if self._n_elements_in_file >= self._max_elements_in_file:
-            self._close_output_file()
-            self._n_elements_in_file = 0
-            self._file_index += 1
-            self._open_output_file()
-
+    def _handle_fields(self, fields: List[str]) -> None:
         document = self._convert_to_document(fields)
         self._current_file.write(document)
         self._is_first_line = False
@@ -103,12 +115,6 @@ class BlastConverter(Converter):
       }}"""
         return document
 
-    def close_input_file(self) -> None:
-        self._close_file()
-
-    def _close_output_file(self) -> None:
-        self._close_file()
-
     def _close_file(self) -> None:
         if self._current_file is not None and not self._current_file.closed:
             self._current_file.write('\n]')
@@ -118,66 +124,23 @@ class BlastConverter(Converter):
         pass
 
 
-class RedisConverter(Converter):
-    def __init__(self, output_path_base: Path, clean_folder: bool):
-        super().__init__(output_path_base, clean_folder, 'redis')
-        self._file_index = None  # type: int
-        self._writer = None  # type: csv.writer
-        self._current_year = None  # type: str
-        self._is_first_line = None  # type: bool
-
-    @property
-    def _output_extension(self) -> str:
-        return 'csv'
-
-    def open_input_file(self, year: str) -> None:
-        self._current_year = year
-        output_file_path = self.output_path / f'{self._current_year}.{self._output_extension}'
-        output_file = open(str(output_file_path), 'w', newline='')
-        self._writer = csv.writer(output_file)
-        self._is_first_line = True
-
-    def handle_line(self, fields: List[str]) -> None:
-        document = self._convert_to_document(fields)
-        self._writer.writerow(document)
-        self._is_first_line = False
-
-    def _convert_to_document(self, fields: List[str]) -> List[str]:
-        arxiv_id = processing.clean_id(fields[id_index])
-        authors = processing.clean_field(fields[authors_index]).replace(',', ', ')
-        title = processing.clean_field(fields[title_index])
-        document = [arxiv_id, self._current_year, authors, title]
-        return document
-
-    def close_input_file(self) -> None:
-        pass
-
-    def post_conversion(self) -> None:
-        pass
-
-
 class PostgresConverter(Converter):
     def __init__(self, output_path_base: Path, clean_folder: bool):
         super().__init__(output_path_base, clean_folder, 'postgres')
-        self._file_index = None  # type: int
         self._current_file = None  # type: TextIO
-        self._current_year = None  # type: str
-        self._is_first_line = None  # type: bool
         self._ids = set()
 
     @property
     def _output_extension(self) -> str:
         return 'sql'
 
-    def open_input_file(self, year: str) -> None:
-        self._current_year = year
-        output_file_path = self.output_path / f'{self._current_year}.{self._output_extension}'
-        self._current_file = open(str(output_file_path), 'w')
+    def _open_output_file(self) -> None:
+        self._is_first_line = True
+        self._current_file = open(self._output_file_path, 'w')
         self._current_file.write(f"""INSERT INTO refs (referencer, referencee)
 VALUES""")
-        self._is_first_line = True
 
-    def handle_line(self, fields: List[str]) -> None:
+    def _handle_fields(self, fields: List[str]) -> None:
         document = self._convert_to_document(fields)
         if document is not None:
             self._current_file.write(document)
@@ -197,7 +160,7 @@ VALUES""")
         document = ''.join(document)
         return document
 
-    def close_input_file(self) -> None:
+    def _close_file(self) -> None:
         self._current_file.write('\n;')
         self._current_file.close()
 
@@ -231,6 +194,39 @@ VALUES{document}
 ;""")
 
 
+class RedisConverter(Converter):
+    def __init__(self, output_path_base: Path, clean_folder: bool):
+        super().__init__(output_path_base, clean_folder, 'redis')
+        self._writer = None  # type: csv.writer
+
+    @property
+    def _output_extension(self) -> str:
+        return 'csv'
+
+    def _open_output_file(self) -> None:
+        self._is_first_line = True
+        output_file = open(self._output_file_path, 'w', newline='')
+        self._writer = csv.writer(output_file)
+
+    def _handle_fields(self, fields: List[str]) -> None:
+        document = self._convert_to_document(fields)
+        self._writer.writerow(document)
+        self._is_first_line = False
+
+    def _convert_to_document(self, fields: List[str]) -> List[str]:
+        arxiv_id = processing.clean_id(fields[id_index])
+        authors = processing.clean_field(fields[authors_index]).replace(',', ', ')
+        title = processing.clean_field(fields[title_index])
+        document = [arxiv_id, self._current_year, authors, title]
+        return document
+
+    def _close_file(self) -> None:
+        pass
+
+    def post_conversion(self) -> None:
+        pass
+
+
 def clean_folder_maybe(path: Path, clean_folder: bool, recreate: bool = True) -> None:
     if clean_folder and path.exists():
         logger.info(f'Cleaning folder {path.name}')
@@ -243,7 +239,7 @@ def clean_folder_maybe(path: Path, clean_folder: bool, recreate: bool = True) ->
 # only blast makes sense to cache
 @click.command()
 def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
-         n_max_splits: int = 7, max_elements_per_file: int = 15000, max_n_files: Optional[int] = 1,
+         n_max_splits: int = 7, max_elements_per_file: int = 10000, max_n_files: Optional[int] = 1,
          clean_input: bool = False, clean_output_for_blast: bool = False, clean_output_for_redis: bool = False,
          clean_output_for_postgres: bool = False) -> None:
     base_path = Path('data')
@@ -260,7 +256,7 @@ def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
 
     n_total_elements = 0
     input_file_paths = input_path.glob('*.csv')
-    input_file_paths = sorted(input_file_paths, reverse=True)
+    input_file_paths = sorted(input_file_paths, reverse=False)
     for index, input_file_path in enumerate(input_file_paths):
         if max_n_files is not None and index >= max_n_files:
             break
@@ -270,7 +266,7 @@ def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
         with open(str(input_file_path), 'r') as input_file:
             n_elements_in_file = 0
 
-            [c.open_input_file(year) for c in converters]
+            [c.input_file_opened(year) for c in converters]
 
             for line in input_file:
                 line_clean = line.strip()
@@ -281,7 +277,7 @@ def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
                 fields = line.split(';', n_max_splits)
                 [c.handle_line(fields) for c in converters]
 
-            [c.close_input_file() for c in converters]
+            [c.input_file_closed() for c in converters]
 
             logging.info(f'N elements converted: {n_elements_in_file}')
             n_total_elements += n_elements_in_file
