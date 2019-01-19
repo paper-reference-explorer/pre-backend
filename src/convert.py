@@ -205,10 +205,12 @@ def clean_folder_maybe(path: Path, clean_folder: bool, recreate: bool = True) ->
 
 
 @click.command()
-def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
-         n_max_splits: int = 7, max_elements_per_file: int = 10000, max_n_files: Optional[int] = 3,
-         clean_input: bool = False, clean_output_for_blast: bool = False, clean_output_for_redis: bool = False,
-         clean_output_for_postgres: bool = False) -> None:
+@click.option('--max-elements-per-file', '-mepf', type=int, default=10000)
+@click.option('--max-n-files', '-mnf', type=int, default=1)
+@click.option('--clean-input/--no-clean-input', '-ci/-nci', default=False)
+@click.option('--clean-output/--no-clean-output', '-co/-nco', default=False)
+def main(max_elements_per_file: int, max_n_files: Optional[int],
+         clean_input: bool = False, clean_output: bool = False) -> None:
     base_path = Path('data')
     input_path = base_path / config.InputConfig.INPUT_FOLDER_NAME
     clean_folder_maybe(input_path, clean_input, recreate=False)
@@ -216,9 +218,9 @@ def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
 
     output_path_base = base_path / 'output_for'
     converters = [
-        BlastConverter(output_path_base, clean_output_for_blast, max_elements_per_file),
-        RedisConverter(output_path_base, clean_output_for_redis, max_elements_per_file),
-        PostgresConverter(output_path_base, clean_output_for_postgres, max_elements_per_file)
+        BlastConverter(output_path_base, clean_output, max_elements_per_file),
+        RedisConverter(output_path_base, clean_output, max_elements_per_file),
+        PostgresConverter(output_path_base, clean_output, max_elements_per_file)
     ]
 
     n_total_elements = 0
