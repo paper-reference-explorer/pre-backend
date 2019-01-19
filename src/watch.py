@@ -190,5 +190,32 @@ def init_postgres(host: str, port: int, file_glob: str) -> None:
     SetupPostgres(host, port, file_glob).run()
 
 
+@cli.command()
+@click.option('--postgres-host', '-ph', type=str, default='postgres', help='host of postgres to connect to')
+@click.option('--postgres-port', '-pp', type=int, default=5432, help='port of postgres to connect to')
+@click.option('--redis-host', '-rh', type=str, default='redis', help='host of redis to connect to')
+@click.option('--redis-port', '-rp', type=int, default=6379, help='port of redis to connect to')
+def count_referenced_by(postgres_host: str, postgres_port: int, redis_host: str, redis_port: int) -> None:
+    postgres_connection = psycopg2.connect(f"host='{postgres_host}' port={postgres_port} dbname=postgres"
+                                   + " user=postgres password=mysecretpassword")
+    sql = """
+SELECT p.ID, COUNT(*)  
+FROM papers p
+    INNER JOIN refs r 
+        ON r.referencee = p.ID
+GROUP BY p.ID"""
+    cursor = postgres_connection.cursor()
+    cursor.execute(sql)
+
+    redis_db = 0
+    redis_connection = redis.Redis(host=redis_host, port=redis_port, db=redis_db)
+    for paper_id, referenced_count in cursor:
+        redis_connection.hsetnx(paper_id, 'referenced_by_n', referenced_count)
+    postgres_connection.commit()
+    cursor.close()
+
+    postgres_connection.close()
+
+
 if __name__ == '__main__':
     cli()

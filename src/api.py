@@ -98,6 +98,7 @@ def _get_paper(paper_id: str) -> Optional[Dict[str, str]]:
     p = redis_connection.hgetall(paper_id)
     if len(p.keys()) > 0:
         p['id'] = paper_id
+        p['referenced_by_n'] = p.get('referenced_by_n', 0)
         return p
     else:
         return None
