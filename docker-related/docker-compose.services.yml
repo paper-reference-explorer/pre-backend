@@ -1,7 +1,7 @@
 version: '3.7'
 services:
   blast:
-    image: mosuka/blast:v0.3.2
+    command: start
     environment:
       BLAST_BIND_ADDR: blast:10000
       BLAST_GRPC_ADDR: blast:10001
@@ -11,13 +11,14 @@ services:
       BLAST_STORE_DIR: /blastdata/node1/store
       BLAST_INDEX_DIR: /blastdata/node1/index
       BLAST_INDEX_MAPPING: /blastdata/index_mapping.json
+    image: mosuka/blast:v0.3.2
     volumes:
       - ../mounts/blastdata:/blastdata
-    command: start
-  watcher:
-    build:
-      context: ..
-      dockerfile: ./Dockerfile
-      target: blast
-    depends_on:
-      - blast
+  postgres:
+    image: postgres:11-alpine
+    volumes:
+      - ../mounts/pgdata:/var/lib/postgresql/data
+  redis:
+    image: redis:5-alpine
+    volumes:
+      - ../mounts/redisdata:/data

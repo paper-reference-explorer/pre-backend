@@ -21,11 +21,11 @@ def cli():
 
 
 class Setup(abc.ABC):
-    def __init__(self, host: str, port: int, file_glob: str):
+    def __init__(self, host: str, port: int, file_glob: str, folder_name: str):
         self._host = host
         self._port = port
         self._file_glob = file_glob
-        self._input_path, self._input_file_paths = self._get_paths()
+        self._input_path, self._input_file_paths = self._get_paths(folder_name)
         self._wait_until_open()
 
     @property
@@ -41,9 +41,9 @@ class Setup(abc.ABC):
     def _post_setup(self) -> None:
         pass
 
-    def _get_paths(self) -> Tuple[Path, List[Path]]:
+    def _get_paths(self, folder_name: str) -> Tuple[Path, List[Path]]:
         base_path = Path('data')
-        input_path = base_path / 'input'
+        input_path = base_path / 'output_for' / folder_name
         input_file_paths = input_path.glob(self._file_glob)
         input_file_paths = sorted(input_file_paths, reverse=True)
         return input_path, input_file_paths
@@ -101,7 +101,7 @@ class Setup(abc.ABC):
 
 class SetupBlast(Setup):
     def __init__(self, host: str, port: int, file_glob: str):
-        super().__init__(host, port, file_glob)
+        super().__init__(host, port, file_glob, 'blast')
 
     @property
     def _filename_skip_list(self) -> List[str]:
@@ -117,7 +117,7 @@ class SetupBlast(Setup):
 
 class SetupRedis(Setup):
     def __init__(self, host: str, port: int, file_glob: str):
-        super().__init__(host, port, file_glob)
+        super().__init__(host, port, file_glob, 'redis')
         redis_db = 0
         self._connection = redis.Redis(host=self._host, port=self._port, db=redis_db)
 
@@ -138,7 +138,7 @@ class SetupRedis(Setup):
 
 class SetupPostgres(Setup):
     def __init__(self, host: str, port: int, file_glob: str):
-        super().__init__(host, port, file_glob)
+        super().__init__(host, port, file_glob, 'postgres')
         self._connection = psycopg2.connect(f"host='{self._host}' port={self._port} dbname=postgres"
                                             + " user=postgres password=mysecretpassword")
         self._read_priority_files()
@@ -197,7 +197,7 @@ def init_postgres(host: str, port: int, file_glob: str) -> None:
 @click.option('--redis-port', '-rp', type=int, default=6379, help='port of redis to connect to')
 def count_referenced_by(postgres_host: str, postgres_port: int, redis_host: str, redis_port: int) -> None:
     postgres_connection = psycopg2.connect(f"host='{postgres_host}' port={postgres_port} dbname=postgres"
-                                   + " user=postgres password=mysecretpassword")
+                                           + " user=postgres password=mysecretpassword")
     sql = """
 SELECT p.ID, COUNT(*)  
 FROM papers p

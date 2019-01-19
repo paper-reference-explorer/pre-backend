@@ -7,29 +7,7 @@ services:
       target: api
     depends_on:
       - blast
-      - redis
       - postgres
+      - redis
     ports:
       - 80:5000
-  blast:
-    image: mosuka/blast:v0.3.2
-    environment:
-      BLAST_BIND_ADDR: blast:10000
-      BLAST_GRPC_ADDR: blast:10001
-      BLAST_HTTP_ADDR: blast:10002
-      BLAST_RAFT_NODE_ID: node1
-      BLAST_RAFT_DIR: /blastdata/node1/raft
-      BLAST_STORE_DIR: /blastdata/node1/store
-      BLAST_INDEX_DIR: /blastdata/node1/index
-      BLAST_INDEX_MAPPING: /blastdata/index_mapping.json
-    volumes:
-      - ../mounts/blastdata:/blastdata
-    command: start
-  redis:
-    image: redis:5-alpine
-    volumes:
-      - ../mounts/redisdata:/data
-  postgres:
-    image: postgres:11-alpine
-    volumes:
-      - ../mounts/pgdata:/var/lib/postgresql/data
