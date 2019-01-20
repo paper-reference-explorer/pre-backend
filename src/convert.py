@@ -1,128 +1,198 @@
+import abc
 import csv
 import logging
-import math
-import re
 import shutil
 from pathlib import Path
-from typing import TextIO, Tuple, Optional, List
+from typing import TextIO, Optional, List
 
-import nltk
+import click
 from git import Repo
 
-nltk.download('stopwords')
+import config
+import processing
 
-logging.basicConfig(format='%(asctime)s - %(levelname)-8s - %(name)s    - %(message)s', level=logging.DEBUG)
+logging.basicConfig(format=config.LOG_FORMAT, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-id_index = 0
-references_index = 4
-authors_index = 5
-title_index = 6
-min_title_word_length = 3
 
-pattern_alpha = re.compile('[^a-zA-Z ]+')
-pattern_alphanumeric = re.compile('[\W]+')
-stop_words = set(nltk.corpus.stopwords.words('english'))
-stemmer = nltk.stem.SnowballStemmer('english')
-vocab = set()
-ids = set()
+class Converter(abc.ABC):
+    def __init__(self, output_path: Path, clean_folder: bool, max_elements_per_file: int):
+        super().__init__()
+        # self._service_config must be set by the implementation class
+        self.output_path = output_path / self._service_config.FOLDER_NAME
+        clean_folder_maybe(self.output_path, clean_folder)
+        self._max_elements_in_file = max_elements_per_file
+        self._file_index = None  # type: int
+        self._current_year = None  # type: str
+        self._n_elements_in_file = None  # type: int
+        self._is_first_line = None  # type: bool
+        self._is_skipping_file = None  # type: bool
+        self._skipped_once = False
 
+    def input_file_opened(self, year: str) -> None:
+        self._file_index = 1
+        self._n_elements_in_file = 0
+        self._current_year = year
+        self._is_skipping_file = self._output_file_path.exists()
+        if self._is_skipping_file:
+            self._skipped_once = True
+        else:
+            self._open_output_file()
 
-def main(source_url: str = 'https://github.com/paperscape/paperscape-data.git',
-         n_max_splits: int = 7, max_elements_per_file: int = 15000, max_n_files: Optional[int] = 1,
-         clean_input: bool = False, clean_output_for_blast: bool = False, clean_output_for_redis: bool = True,
-         clean_output_for_postgres: bool = False) -> None:
-    # warning: redis recreates the tables and inserts elements
-    # if a file is cached it won't get added
-    # hence, for now, redis always has to run
+    @property
+    def _output_file_path(self) -> Path:
+        return self.output_path / f'{self._current_year}_{self._file_index}.{self._service_config.FILE_EXTENSION}'
 
-    base_path = Path('data')
-    input_path = base_path / 'input'
-    output_path_base = base_path / 'output_for'
-    output_path_blast = output_path_base / 'blast'
-    output_path_redis = output_path_base / 'redis'
-    output_path_postgres = output_path_base / 'postgres'
-    n_total_elements = 0
-    setup_directories(input_path, clean_input, output_path_blast, clean_output_for_blast,
-                      output_path_redis, clean_output_for_redis, output_path_postgres, clean_output_for_postgres,
-                      source_url)
+    @abc.abstractmethod
+    def _open_output_file(self) -> None:
+        pass
 
-    input_file_paths = input_path.glob('*.csv')
-    input_file_paths = sorted(input_file_paths, reverse=True)
-    for index, input_file_path in enumerate(input_file_paths):
-        if max_n_files is not None and index >= max_n_files:
-            break
+    def handle_line(self, fields: List[str]) -> None:
+        if self._is_skipping_file:
+            return
+        self._n_elements_in_file += 1
+        if self._n_elements_in_file >= self._max_elements_in_file:
+            self._close_output_file()
+            self._n_elements_in_file = 0
+            self._file_index += 1
+            self._open_output_file()
 
-        logging.info(f'Converting {input_file_path.name}...')
-        year = input_file_path.name[5:9]
-        n_elements_in_file = count_elements_in_file(input_file_path)
-        n_files_needed = math.ceil(n_elements_in_file / max_elements_per_file)
-        with open(str(input_file_path), 'r') as input_file:
-            n_elements_in_file = 0
-            for file_index in range(n_files_needed):
-                output_file_path_blast = get_output_file_path(file_index, output_path_blast, year, 'json')
-                output_file_path_redis = get_output_file_path(file_index, output_path_redis, year, 'csv')
-                output_file_path_postgres = get_output_file_path(file_index, output_path_postgres, year, 'sql')
-                if (output_file_path_blast.exists() and output_file_path_redis.exists()
-                        and output_file_path_postgres.exists()):
-                    logging.info(f'File {output_file_path_blast.name} or File {output_file_path_redis.name}'
-                                 + f' or File {output_file_path_postgres.name} already exists. Skipping.')
-                else:
-                    n_elements_in_file += write_content(input_file, output_file_path_blast, output_file_path_redis,
-                                                        output_file_path_postgres, max_elements_per_file, n_max_splits,
-                                                        year)
-            logging.info(f'N elements converted: {n_elements_in_file}')
-            n_total_elements += n_elements_in_file
-            logging.info(f'vocab size so far: {len(vocab)}')
+        self._handle_fields(fields)
 
-    create_tables_file_path = output_path_postgres / 'create_tables.sql'
-    with open(str(create_tables_file_path), 'w') as create_tables_file:
-        create_tables_file.write("""DROP TABLE IF EXISTS refs;
-DROP TABLE IF EXISTS papers;
+    @abc.abstractmethod
+    def _handle_fields(self, fields: List[str]) -> None:
+        pass
 
-CREATE TABLE IF NOT EXISTS papers
-(
-  ID VARCHAR(64) PRIMARY KEY
-);
+    def input_file_closed(self) -> None:
+        if self._is_skipping_file:
+            return
+        self._close_file()
 
-CREATE TABLE IF NOT EXISTS refs
-(
-  referencer VARCHAR(64) NOT NULL,
-  referencee VARCHAR(64) NOT NULL,
-  FOREIGN KEY (referencer) REFERENCES papers (ID),
-  FOREIGN KEY (referencee) REFERENCES papers (ID),
-  PRIMARY KEY (referencer, referencee)
-);""")
+    def _close_output_file(self) -> None:
+        if self._is_skipping_file:
+            return
+        self._close_file()
 
-    insert_into_papers_file_path = output_path_postgres / 'insert_into_papers.sql'
-    with open(str(insert_into_papers_file_path), 'w') as insert_into_papers_file:
-        document = [('' if index == 0 else ',\n      ') + f" ('{r}')"
-                    for index, r in enumerate(sorted(list(ids)))]
-        document = ''.join(document)
-        insert_into_papers_file.write(f"""INSERT INTO papers (ID)
-VALUES{document}
-;""")
+    @abc.abstractmethod
+    def _close_file(self) -> None:
+        pass
 
-    logging.info(f'N elements converted in total: {n_total_elements}')
-    logging.info(f'vocab size total: {len(vocab)}')
+    @abc.abstractmethod
+    def post_conversion(self) -> None:
+        pass
 
 
-def get_output_file_path(file_index: int, output_path: Path, year: str, extension: str) -> Path:
-    output_file_path = output_path / f'{year}_{file_index + 1}.{extension}'
-    return output_file_path
+class BlastConverter(Converter):
+    def __init__(self, output_path_base: Path, clean_folder: bool, max_elements_per_file: int):
+        # set it here so the type is correctly recognized
+        self._service_config = config.BlastServiceConfig
+        super().__init__(output_path_base, clean_folder, max_elements_per_file)
+        self._current_file = None  # type: TextIO
+
+    def _open_output_file(self) -> None:
+        self._is_first_line = True
+        self._current_file = open(str(self._output_file_path), 'w')
+        self._current_file.write(self._service_config.FILE_START)
+
+    def _handle_fields(self, fields: List[str]) -> None:
+        document = self._convert_to_document(fields)
+        self._current_file.write(document)
+        self._is_first_line = False
+
+    def _convert_to_document(self, fields: List[str]) -> str:
+        paper_id = processing.clean_id(fields[config.InputConfig.ID_INDEX])
+        authors = processing.clean_authors(fields[config.InputConfig.AUTHORS_INDEX])
+        title = processing.clean_title(fields[config.InputConfig.TITLE_INDEX])
+        document = self._service_config.FILE_ENTRY(self._is_first_line, paper_id, self._current_year, authors, title)
+        return document
+
+    def _close_file(self) -> None:
+        if self._current_file is not None and not self._current_file.closed:
+            self._current_file.write(self._service_config.FILE_END)
+            self._current_file.close()
+
+    def post_conversion(self) -> None:
+        pass
 
 
-def setup_directories(input_path: Path, clean_input: bool, output_path_blast: Path, clean_output_for_blast: bool,
-                      output_path_redis: Path, clean_output_for_redis: bool,
-                      output_path_postgres: Path, clean_output_for_postgres: bool, source_url: str) -> None:
-    clean_folder_maybe(input_path, clean_input, recreate=False)
-    clean_folder_maybe(output_path_blast, clean_output_for_blast)
-    clean_folder_maybe(output_path_redis, clean_output_for_redis)
-    clean_folder_maybe(output_path_postgres, clean_output_for_postgres)
-    if not input_path.exists():
-        logger.info('Cloning repo...')
-        Repo.clone_from(source_url, input_path)
-        logger.info('Finished cloning repo')
+class PostgresConverter(Converter):
+    def __init__(self, output_path_base: Path, clean_folder: bool, max_elements_per_file: int):
+        # set it here so the type is correctly recognized
+        self._service_config = config.PostgresServiceConfig
+        super().__init__(output_path_base, clean_folder, max_elements_per_file)
+        self._current_file = None  # type: TextIO
+        self._ids = set()
+
+    def _open_output_file(self) -> None:
+        self._is_first_line = True
+        self._current_file = open(str(self._output_file_path), 'w')
+        self._current_file.write(self._service_config.INSERT_INTO_REFS_START)
+
+    def _handle_fields(self, fields: List[str]) -> None:
+        document = self._convert_to_document(fields)
+        if document is not None:
+            self._current_file.write(document)
+            self._is_first_line = False
+
+    def _convert_to_document(self, fields: List[str]) -> Optional[str]:
+        paper_id = processing.clean_id(fields[config.InputConfig.ID_INDEX])
+        refs = fields[config.InputConfig.REFERENCES_INDEX].split(',')
+        refs = [processing.clean_id(r) for r in refs]
+        if len(refs) == 1 and refs[0] == '':
+            return None
+
+        self._ids.add(paper_id)
+        [self._ids.add(r) for r in refs]
+        document = self._service_config.INSERT_INTO_REFS_ENTRY(self._is_first_line, paper_id, refs)
+        return document
+
+    def _close_file(self) -> None:
+        self._current_file.write(self._service_config.INSERT_INTO_REFS_END)
+        self._current_file.close()
+
+    def post_conversion(self) -> None:
+        if self._skipped_once:
+            logger.warning('Skipping post conversion for postgres because at least one input file was skipped.')
+            return
+        create_tables_file_path = self.output_path / self._service_config.CREATE_TABLE_FILE_NAME
+        with open(str(create_tables_file_path), 'w') as create_tables_file:
+            create_tables_file.write(config.PostgresServiceConfig.CREATE_TABLES_SQL)
+
+        insert_into_papers_file_path = self.output_path / self._service_config.INSERT_INTO_PAPERS_FILE_NAME
+        with open(str(insert_into_papers_file_path), 'w') as insert_into_papers_file:
+            document = config.PostgresServiceConfig.INSERT_INTO_PAPERS_SQL(self._ids)
+            insert_into_papers_file.write(document)
+
+
+class RedisConverter(Converter):
+    def __init__(self, output_path_base: Path, clean_folder: bool, max_elements_per_file: int):
+        # set it here so the type is correctly recognized
+        self._service_config = config.RedisServiceConfig
+        super().__init__(output_path_base, clean_folder, max_elements_per_file)
+        self._writer = None  # type: csv.writer
+
+    def _open_output_file(self) -> None:
+        self._is_first_line = True
+        output_file = open(str(self._output_file_path), 'w', newline='')
+        self._writer = csv.writer(output_file)
+
+    def _handle_fields(self, fields: List[str]) -> None:
+        document = self._convert_to_document(fields)
+        self._writer.writerow(document)
+        self._is_first_line = False
+
+    def _convert_to_document(self, fields: List[str]) -> List[str]:
+        paper_id = processing.clean_id(fields[config.InputConfig.ID_INDEX])
+        authors = processing.clean_field(fields[config.InputConfig.AUTHORS_INDEX]).replace(',', ', ')
+        title = processing.clean_field(fields[config.InputConfig.TITLE_INDEX])
+        document = [paper_id, self._current_year, authors, title]
+        return document
+
+    def _close_file(self) -> None:
+        pass
+
+    def post_conversion(self) -> None:
+        pass
 
 
 def clean_folder_maybe(path: Path, clean_folder: bool, recreate: bool = True) -> None:
@@ -134,149 +204,64 @@ def clean_folder_maybe(path: Path, clean_folder: bool, recreate: bool = True) ->
         path.mkdir(exist_ok=True, parents=True)
 
 
-def count_elements_in_file(input_file_path: Path) -> int:
-    n_elements_in_file = 0
-    with open(str(input_file_path), 'r') as input_file:
-        for line in input_file:
-            line_clean = line.strip()
-            if not line_clean.startswith('#'):
-                n_elements_in_file += 1
-    return n_elements_in_file
+@click.command()
+@click.option('--max-elements-per-file', '-mepf', type=int, default=10000)
+@click.option('--max-n-files', '-mnf', type=int, default=5)
+@click.option('--clean-input/--no-clean-input', '-ci/-nci', default=False)
+@click.option('--clean-output/--no-clean-output', '-co/-nco', default=False)
+def main(max_elements_per_file: int, max_n_files: Optional[int],
+         clean_input: bool = False, clean_output: bool = False) -> None:
+    base_path = Path('data')
+    input_path = base_path / config.InputConfig.INPUT_FOLDER_NAME
+    clean_folder_maybe(input_path, clean_input, recreate=False)
+    clone_repo(input_path)
+
+    output_path_base = base_path / 'output_for'
+    converters = [
+        BlastConverter(output_path_base, clean_output, max_elements_per_file),
+        RedisConverter(output_path_base, clean_output, max_elements_per_file),
+        PostgresConverter(output_path_base, clean_output, max_elements_per_file)
+    ]
+
+    n_total_elements = 0
+    input_file_paths = input_path.glob(config.InputConfig.FILE_GLOB)
+    input_file_paths = sorted(input_file_paths, reverse=True)
+    for index, input_file_path in enumerate(input_file_paths):
+        if max_n_files is not None and index >= max_n_files:
+            break
+
+        logging.info(f'Converting {input_file_path.name}...')
+        year = input_file_path.name[5:9]
+        with open(str(input_file_path), 'r') as input_file:
+            n_elements_in_file = 0
+
+            [c.input_file_opened(year) for c in converters]
+
+            for line in input_file:
+                line_clean = line.strip()
+                if line_clean.startswith('#'):
+                    continue
+
+                fields = line.split(';', config.InputConfig.N_MAX_SPLITS)
+                categories = fields[config.InputConfig.CATEGORIES_INDEX].split(',')
+                if any([c.startswith('cs.') for c in categories]):
+                    n_elements_in_file += 1
+                    [c.handle_line(fields) for c in converters]
+
+            [c.input_file_closed() for c in converters]
+
+            logging.info(f'N elements converted: {n_elements_in_file}')
+            n_total_elements += n_elements_in_file
+
+    [c.post_conversion() for c in converters]
+    logging.info(f'N elements converted in total: {n_total_elements}')
 
 
-def write_content(input_file: TextIO, output_file_path_blast: Path, output_file_path_redis: Path,
-                  output_file_path_postgres: Path, max_elements_per_file: int, n_max_splits: int, year: str) -> int:
-    with open(str(output_file_path_blast), 'w') as output_file_blast:
-        output_file_blast.write('[')
-        with open(str(output_file_path_redis), 'w', newline='') as output_file_redis:
-            writer_redis = csv.writer(output_file_redis)
-
-            with open(str(output_file_path_postgres), 'w', newline='') as output_file_postgres:
-                output_file_postgres.write(f"""INSERT INTO refs (referencer, referencee)
-VALUES""")
-
-                n_elements = 0
-                is_first_line_blast = True
-                is_first_line_redis = True
-                is_first_line_postgres = True
-                for line in input_file:
-                    line_clean = line.strip()
-                    if not line_clean.startswith('#'):
-                        n_elements += 1
-                        fields = line.split(';', n_max_splits)
-
-                        data = extract_fields_blast(fields)
-                        document = convert_to_document_blast(year, is_first_line_blast, data)
-                        output_file_blast.write(document)
-                        is_first_line_blast = False
-
-                        data = extract_fields_redis(fields)
-                        document = convert_to_document_redis(year, is_first_line_redis, data)
-                        writer_redis.writerow(document)
-                        is_first_line_redis = False
-
-                        data = extract_fields_postgres(fields)
-                        document = convert_to_document_postgres(year, is_first_line_postgres, data)
-                        if document is not None:
-                            output_file_postgres.write(document)
-                            is_first_line_postgres = False
-
-                        if n_elements == max_elements_per_file:
-                            break
-
-                output_file_postgres.write('\n;')
-        output_file_blast.write('\n]')
-
-    return n_elements
-
-
-def extract_fields_blast(fields: List[str]) -> Tuple[str, str, str]:
-    arxiv_id = clean_id(fields[id_index])
-    authors = clean_authors(fields[authors_index])
-    title = clean_title(fields[title_index])
-    return arxiv_id, authors, title
-
-
-def convert_to_document_blast(year: str, is_first_line: bool, fields: Tuple[str, str, str]) -> str:
-    arxiv_id, authors, title = fields
-    document = f"""{'' if is_first_line else ','}
-  {{
-    "type": "PUT",
-    "document": {{
-      "id": "{arxiv_id}",
-      "fields": {{
-        "year": "{year}",
-        "authors": "{authors}",
-        "title": "{title}"
-      }}
-    }}
-  }}"""
-    return document
-
-
-def extract_fields_redis(fields: List[str]) -> Tuple[str, str, str]:
-    arxiv_id = clean_id(fields[id_index])
-    authors = clean_field(fields[authors_index]).replace(',', ', ')
-    title = clean_field(fields[title_index])
-    return arxiv_id, authors, title
-
-
-def convert_to_document_redis(year: str, is_first_line: bool, fields: Tuple[str, str, str]) -> List[str]:
-    arxiv_id, authors, title = fields
-    document = [arxiv_id, year, authors, title]
-    return document
-
-
-def extract_fields_postgres(fields: List[str]) -> Tuple[str, List[str]]:
-    arxiv_id = clean_id(fields[id_index])
-    refs = fields[references_index].split(',')
-    refs = [clean_id(r) for r in refs]
-    return arxiv_id, refs
-
-
-def convert_to_document_postgres(year: str, is_first_line: bool, fields: Tuple[str, List[str]]) -> Optional[str]:
-    arxiv_id, refs = fields
-    if len(refs) == 1 and refs[0] == '':
-        return None
-    ids.add(arxiv_id)
-    [ids.add(r) for r in refs]
-    document = [('' if is_first_line and index == 0 else ',\n      ') + f" ('{arxiv_id}', '{r}')"
-                for index, r in enumerate(refs)]
-    document = ''.join(document)
-    return document
-
-
-def clean_field(s: str) -> str:
-    return s.replace('"', '').replace('\t', ' ').replace('\\', '\\\\').strip()
-
-
-def clean_id(s: str) -> str:
-    s = clean_field(s)
-    s = pattern_alphanumeric.sub('_', s)
-    return s
-
-
-def clean_authors(s: str) -> str:
-    s = clean_field(s)
-    s = s.lower()
-    s = [w.strip().split('.')[-1]
-         for w in s.split(',')]
-    s = [pattern_alpha.sub(' ', w) for w in s]
-    [vocab.add(w) for w in s]
-    s = ' '.join(s)
-    return s
-
-
-def clean_title(s: str) -> str:
-    s = clean_field(s)
-    s = s.lower()
-    s = pattern_alpha.sub(' ', s)
-    s = [stemmer.stem(w)
-         for w in s.split()
-         if w not in stop_words and len(w) > min_title_word_length]
-    [vocab.add(w) for w in s]
-    s = ' '.join(s)
-    return s
+def clone_repo(input_path: Path) -> None:
+    if not input_path.exists():
+        logger.info('Cloning repo...')
+        Repo.clone_from(config.InputConfig.SOURCE_URL, input_path)
+        logger.info('Finished cloning repo')
 
 
 if __name__ == '__main__':

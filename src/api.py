@@ -2,41 +2,15 @@ import copy
 import json
 from typing import Dict, Optional
 
-import psycopg2
-import redis
 import requests
 from flask import Flask, jsonify, abort
 
+import config
+import processing
+
 app = Flask(__name__)
-redis_connection = redis.StrictRedis('redis', 6379, 0, charset='utf-8', decode_responses=True)
-
-blast_url = f'http://blast:10002/rest/_search'
-
-redis_host = 'redis'
-redis_port = 6379
-redis_db = 0
-
-blast_request = {
-    "search_request": {
-        "query": {
-            "query": None
-        },
-        "size": 10,
-        "from": 0,
-        "fields": [
-            "*"
-        ],
-        "sort": [
-            "-_score"
-        ],
-        "facets": {},
-        "highlight": {}
-    }
-}
-
-postgres_connection_string = "host='postgres' port=5432 dbname=postgres user=postgres password=mysecretpassword"
-postgres_connection = psycopg2.connect(postgres_connection_string)
-postgres_select_sql = "SELECT referencee FROM refs WHERE referencer = %(paper_id)s"
+redis_connection = config.RedisServiceConfig.create_connection()
+postgres_connection = config.PostgresServiceConfig.create_connection()
 
 
 @app.route('/')
@@ -49,17 +23,18 @@ def paper(paper_id: str):
     p = _get_paper(paper_id)
     if p is None:
         p = dict()
-    
+
     return jsonify(p)
 
 
 @app.route('/api/v1/autocomplete/<string:query>')
 def autocomplete(query: str):
-    payload = copy.deepcopy(blast_request)
+    query = processing.clean_query(query)
+    payload = copy.deepcopy(config.BlastServiceConfig.SEARCH_REQUEST_DICT)
     payload['search_request']['query']['query'] = query
     payload = json.dumps(payload)
 
-    blast_response = requests.post(blast_url, data=payload)
+    blast_response = requests.post(config.BlastServiceConfig.SEARCH_URL, data=payload)
     if blast_response.status_code != 200:
         abort(blast_response.status_code)
 
@@ -74,11 +49,11 @@ def autocomplete(query: str):
     return jsonify(result)
 
 
-@app.route('/api/v1/references/<string:paper_id>')
+@app.route('/api/v1/referenced_by/<string:paper_id>')
 def references(paper_id: str):
     cursor = postgres_connection.cursor()
 
-    cursor.execute(postgres_select_sql, dict(paper_id=paper_id))
+    cursor.execute(config.PostgresServiceConfig.REFERENCED_BY_SQL, dict(paper_id=paper_id))
     postgres_result = cursor.fetchall()
     if len(postgres_result) > 0:
         result = [_get_paper(r[0]) for r in postgres_result]
@@ -95,6 +70,7 @@ def _get_paper(paper_id: str) -> Optional[Dict[str, str]]:
     p = redis_connection.hgetall(paper_id)
     if len(p.keys()) > 0:
         p['id'] = paper_id
+        p['referenced_by_n'] = p.get('referenced_by_n', 0)
         return p
     else:
         return None

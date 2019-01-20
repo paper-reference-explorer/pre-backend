@@ -6,6 +6,7 @@ services:
       - FLASK_APP=src/api
       - FLASK_DEBUG=true
       - FLASK_ENV=development
+      - PYTHONPATH=/usr/src/app/src
     restart: always
     volumes:
       - ../src:/usr/src/app/src

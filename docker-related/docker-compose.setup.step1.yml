@@ -1,0 +1,26 @@
+version: '3.7'
+services:
+  watcher-blast:
+    build:
+      context: ..
+      dockerfile: ./Dockerfile
+      target: setup
+    command: ["python", "./src/watch.py", "init-blast"]
+    depends_on:
+      - blast
+  watcher-postgres:
+    build:
+      context: ..
+      dockerfile: ./Dockerfile
+      target: setup
+    command: ["python", "./src/watch.py", "init-postgres"]
+    depends_on:
+      - postgres
+  watcher-redis:
+    build:
+      context: ..
+      dockerfile: ./Dockerfile
+      target: setup
+    command: ["python", "./src/watch.py", "init-redis"]
+    depends_on:
+      - redis
