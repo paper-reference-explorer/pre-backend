@@ -9,6 +9,7 @@ class InputConfig:
     SOURCE_URL = 'https://github.com/paperscape/paperscape-data.git'
     N_MAX_SPLITS = 7
     ID_INDEX = 0
+    CATEGORIES_INDEX = 1
     REFERENCES_INDEX = 4
     AUTHORS_INDEX = 5
     TITLE_INDEX = 6

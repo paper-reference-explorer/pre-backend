@@ -206,7 +206,7 @@ def clean_folder_maybe(path: Path, clean_folder: bool, recreate: bool = True) ->
 
 @click.command()
 @click.option('--max-elements-per-file', '-mepf', type=int, default=10000)
-@click.option('--max-n-files', '-mnf', type=int, default=1)
+@click.option('--max-n-files', '-mnf', type=int, default=5)
 @click.option('--clean-input/--no-clean-input', '-ci/-nci', default=False)
 @click.option('--clean-output/--no-clean-output', '-co/-nco', default=False)
 def main(max_elements_per_file: int, max_n_files: Optional[int],
@@ -242,9 +242,11 @@ def main(max_elements_per_file: int, max_n_files: Optional[int],
                 if line_clean.startswith('#'):
                     continue
 
-                n_elements_in_file += 1
                 fields = line.split(';', config.InputConfig.N_MAX_SPLITS)
-                [c.handle_line(fields) for c in converters]
+                categories = fields[config.InputConfig.CATEGORIES_INDEX].split(',')
+                if any([c.startswith('cs.') for c in categories]):
+                    n_elements_in_file += 1
+                    [c.handle_line(fields) for c in converters]
 
             [c.input_file_closed() for c in converters]
 
