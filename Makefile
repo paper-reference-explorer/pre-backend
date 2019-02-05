@@ -1,3 +1,8 @@
+.PHONY: test setup dev prod
+
+test:
+# tests and coverage
+	python -m pytest --cov=src --cov-fail-under=4 tests
 setup:
 	sudo docker-compose -f docker-related/docker-compose.services.yml -f docker-related/docker-compose.setup.step1.yml build
 	sudo docker-compose -f docker-related/docker-compose.services.yml -f docker-related/docker-compose.setup.step2.yml build

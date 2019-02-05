@@ -6,13 +6,16 @@ name = "pypi"
 [packages]
 click = "*"
 flask = "*"
-gitpython = "*"
 nltk = "*"
 psycopg2-binary = "*"
 redis = "*"
 requests = "*"
 
 [dev-packages]
+gitpython = "*"
+hypothesis = "*"
+pytest = "*"
+pytest-cov = "*"
 
 [requires]
 python_version = "3.7"
