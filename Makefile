@@ -6,8 +6,11 @@ dev:
 fmt:
 # sorting imports
 	isort -r src/* tests/*
+# code formatter
+	black --py36 --skip-string-normalization --diff src tests
 # linting
 	flake8 src tests
+
 prod:
 	sudo docker-compose -f docker-related/docker-compose.services.yml -f docker-related/docker-compose.api.yml build
 	sudo docker-compose -f docker-related/docker-compose.services.yml -f docker-related/docker-compose.api.yml up
