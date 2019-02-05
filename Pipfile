@@ -12,6 +12,7 @@ redis = "*"
 requests = "*"
 
 [dev-packages]
+bandit = "*"
 "flake8" = "*"
 gitpython = "*"
 hypothesis = "*"
@@ -20,7 +21,6 @@ pytest = "*"
 pytest-cov = "*"
 radon = "*"
 xenon = "*"
-black = "*"
 
 [requires]
 python_version = "3.7"

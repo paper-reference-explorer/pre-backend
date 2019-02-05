@@ -31,6 +31,8 @@ stats:
 # minimal code statistics
 	radon cc --min B src tests
 	radon mi --min B src tests
+# security
+	bandit -r src
 
 test:
 # tests and coverage
