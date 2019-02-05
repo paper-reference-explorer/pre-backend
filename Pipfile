@@ -18,6 +18,8 @@ hypothesis = "*"
 isort = {extras = ["pipfile"], version = "*"}
 pytest = "*"
 pytest-cov = "*"
+radon = "*"
+xenon = "*"
 black = "*"
 
 [requires]
