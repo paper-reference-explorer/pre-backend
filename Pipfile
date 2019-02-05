@@ -15,6 +15,7 @@ requests = "*"
 "flake8" = "*"
 gitpython = "*"
 hypothesis = "*"
+isort = {extras = ["pipfile"], version = "*"}
 pytest = "*"
 pytest-cov = "*"
 
