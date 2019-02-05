@@ -13,6 +13,7 @@ requests = "*"
 
 [dev-packages]
 gitpython = "*"
+hypothesis = "*"
 pytest = "*"
 pytest-cov = "*"
 
