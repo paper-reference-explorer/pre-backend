@@ -13,6 +13,7 @@ requests = "*"
 
 [dev-packages]
 bandit = "*"
+black = "*"
 "flake8" = "*"
 gitpython = "*"
 hypothesis = "*"
@@ -24,3 +25,6 @@ xenon = "*"
 
 [requires]
 python_version = "3.7"
+
+[pipenv]
+allow_prereleases = true
