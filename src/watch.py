@@ -11,6 +11,7 @@ import requests
 
 import config
 
+
 logging.basicConfig(format=config.LOG_FORMAT, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -54,8 +55,11 @@ class Setup(abc.ABC):
             result = sock.connect_ex(connection_info)
         except socket.gaierror as error:
             if error.errno == -2:
-                logger.error(f'Name or service "{self._service_config.HOST}" not known.'
-                             f' Either the docker-compose file is wrong or this file is run outside of docker.')
+                logger.error(
+                    f'Name or service "{self._service_config.HOST}" not known.'
+                    + f' Either the docker-compose file is wrong or this file is'
+                    + f' run outside of docker.'
+                )
                 exit(-2)
             else:
                 raise error
@@ -108,7 +112,9 @@ class SetupBlast(Setup):
         return []
 
     def _step(self, file: Path) -> None:
-        response = requests.post(self._service_config.POST_URL, data=open(str(file), 'rb'))
+        response = requests.post(
+            self._service_config.POST_URL, data=open(str(file), 'rb')
+        )
         logger.info(f'{response.status_code}: {response.content}')
 
     def _post_setup(self) -> None:
@@ -125,7 +131,10 @@ class SetupPostgres(Setup):
 
     @property
     def _filename_skip_list(self) -> List[str]:
-        return [self._service_config.CREATE_TABLE_FILE_NAME, self._service_config.INSERT_INTO_PAPERS_FILE_NAME]
+        return [
+            self._service_config.CREATE_TABLE_FILE_NAME,
+            self._service_config.INSERT_INTO_PAPERS_FILE_NAME,
+        ]
 
     def _step(self, file: Path) -> None:
         cursor = self._connection.cursor()
@@ -189,9 +198,9 @@ def count_referenced_by() -> None:
     postgres_connection = postgres_service_config.create_connection()
 
     sql = """
-SELECT p.ID, COUNT(*)  
+SELECT p.ID, COUNT(*)
 FROM papers p
-    INNER JOIN refs r 
+    INNER JOIN refs r
         ON r.referencee = p.ID
 GROUP BY p.ID"""
     cursor = postgres_connection.cursor()

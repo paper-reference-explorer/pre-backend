@@ -2,8 +2,9 @@ import re
 
 import nltk
 
-pattern_alpha = re.compile('[^a-zA-Z ]+')
-pattern_alphanumeric = re.compile('[\W]+')
+
+pattern_alpha = re.compile(r'[^a-zA-Z ]+')
+pattern_alphanumeric = re.compile(r'[\W]+')
 stop_words = set(nltk.corpus.stopwords.words('english'))
 stemmer = nltk.stem.SnowballStemmer('english')
 
@@ -19,17 +20,16 @@ def clean_id(s: str) -> str:
 
 
 def clean_authors(s: str) -> str:
-    s = ' '.join([w.strip().split('.')[-1]
-                  for w in s.split(',')])
+    s = ' '.join([w.strip().split('.')[-1] for w in s.split(',')])
     s = clean_query(s)
     return s
 
 
 def clean_title(s: str, min_title_word_length: int = 3) -> str:
     s = clean_query(s)
-    s = ' '.join([w
-                  for w in s.split()
-                  if w not in stop_words and len(w) > min_title_word_length])
+    s = ' '.join(
+        [w for w in s.split() if w not in stop_words and len(w) > min_title_word_length]
+    )
     return s
 
 
@@ -38,7 +38,6 @@ def clean_query(s: str) -> str:
     s = s.lower()
     s = pattern_alpha.sub(' ', s)
 
-    s = [stemmer.stem(w)
-         for w in s.split()]
+    s = [stemmer.stem(w) for w in s.split()]
     s = ' '.join(s)
     return s
