@@ -18,7 +18,6 @@ class InputConfig:
 
 
 class ServiceConfig(abc.ABC):
-
     @property
     @abc.abstractmethod
     def HOST(self) -> str:
@@ -45,7 +44,6 @@ class ServiceConfig(abc.ABC):
 
 
 class _BlastServiceConfig(ServiceConfig):
-
     @property
     def HOST(self) -> str:
         return 'blast'
@@ -66,7 +64,9 @@ class _BlastServiceConfig(ServiceConfig):
     def FILE_START(self) -> str:
         return '['
 
-    def FILE_ENTRY(self, is_first_line: bool, paper_id: str, year: str, authors: str, title: str) -> str:
+    def FILE_ENTRY(
+        self, is_first_line: bool, paper_id: str, year: str, authors: str, title: str
+    ) -> str:
         return f"""{'' if is_first_line else ','}
       {{
         "type": "PUT",
@@ -100,25 +100,18 @@ class _BlastServiceConfig(ServiceConfig):
     def SEARCH_REQUEST_DICT(self) -> Dict:
         return {
             "search_request": {
-                "query": {
-                    "query": None
-                },
+                "query": {"query": None},
                 "size": 10,
                 "from": 0,
-                "fields": [
-                    "*"
-                ],
-                "sort": [
-                    "-_score"
-                ],
+                "fields": ["*"],
+                "sort": ["-_score"],
                 "facets": {},
-                "highlight": {}
+                "highlight": {},
             }
         }
 
 
 class _PostgresServiceConfig(ServiceConfig):
-
     @property
     def HOST(self) -> str:
         return 'postgres'
@@ -145,8 +138,10 @@ class _PostgresServiceConfig(ServiceConfig):
 
     @property
     def CONNECTION_STRING(self) -> str:
-        return (f"host='{self.HOST}' port={self.PORT} dbname={self.DB_NAME} user={self.USER_NAME}"
-                + f" password=mysecretpassword")
+        return (
+            f"host='{self.HOST}' port={self.PORT} dbname={self.DB_NAME}"
+            + f" user={self.USER_NAME} password=mysecretpassword"
+        )
 
     def create_connection(self) -> psycopg2.extensions.connection:
         return psycopg2.connect(self.CONNECTION_STRING)
@@ -183,9 +178,14 @@ CREATE TABLE IF NOT EXISTS refs
         return """INSERT INTO refs (referencer, referencee)
 VALUES"""
 
-    def INSERT_INTO_REFS_ENTRY(self, is_first_line: bool, paper_id: str, refs: List[str]) -> str:
-        document = [('' if is_first_line and index == 0 else ',\n      ') + f" ('{paper_id}', '{r}')"
-                    for index, r in enumerate(refs)]
+    def INSERT_INTO_REFS_ENTRY(
+        self, is_first_line: bool, paper_id: str, refs: List[str]
+    ) -> str:
+        document = [
+            ('' if is_first_line and index == 0 else ',\n      ')
+            + f" ('{paper_id}', '{r}')"
+            for index, r in enumerate(refs)
+        ]
         document = ''.join(document)
         return document
 
@@ -194,8 +194,10 @@ VALUES"""
         return '\n;'
 
     def INSERT_INTO_PAPERS_SQL(self, ids: set) -> str:
-        document = [('' if index == 0 else ',\n      ') + f" ('{r}')"
-                    for index, r in enumerate(sorted(list(ids)))]
+        document = [
+            ('' if index == 0 else ',\n      ') + f" ('{r}')"
+            for index, r in enumerate(sorted(list(ids)))
+        ]
         document = ''.join(document)
         document = f"""INSERT INTO papers (ID)
 VALUES{document}
@@ -229,7 +231,13 @@ class _RedisServiceConfig(ServiceConfig):
         return 0
 
     def create_connection(self) -> redis.Redis:
-        return redis.StrictRedis(host=self.HOST, port=self.PORT, db=self.DB, charset='utf-8', decode_responses=True)
+        return redis.StrictRedis(
+            host=self.HOST,
+            port=self.PORT,
+            db=self.DB,
+            charset='utf-8',
+            decode_responses=True,
+        )
 
 
 BlastServiceConfig = _BlastServiceConfig()

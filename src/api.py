@@ -3,10 +3,11 @@ import json
 from typing import Dict, Optional
 
 import requests
-from flask import Flask, jsonify, abort
+from flask import Flask, abort, jsonify
 
 import config
 import processing
+
 
 app = Flask(__name__)
 redis_connection = config.RedisServiceConfig.create_connection()
@@ -53,7 +54,9 @@ def autocomplete(query: str):
 def references(paper_id: str):
     cursor = postgres_connection.cursor()
 
-    cursor.execute(config.PostgresServiceConfig.REFERENCED_BY_SQL, dict(paper_id=paper_id))
+    cursor.execute(
+        config.PostgresServiceConfig.REFERENCED_BY_SQL, dict(paper_id=paper_id)
+    )
     postgres_result = cursor.fetchall()
     if len(postgres_result) > 0:
         result = [_get_paper(r[0]) for r in postgres_result]
