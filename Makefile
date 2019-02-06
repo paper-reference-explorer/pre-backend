@@ -28,7 +28,7 @@ stats:
 # same as radon commands but actually fails if conditions are not met
 	xenon --max-absolute C --max-modules A --max-average A src
 	xenon --max-absolute C --max-modules A --max-average A tests
-# minimal code statistics
+# prints minimal code statistics
 	radon cc --min B src tests
 	radon mi --min B src tests
 # security
