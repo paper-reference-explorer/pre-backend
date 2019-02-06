@@ -8,7 +8,7 @@ fmt:
 # sorting imports
 	isort -r src/* tests/*
 # code formatter
-	black --py36 --skip-string-normalization --diff src tests
+	black --py36 --skip-string-normalization src tests
 # linting
 	flake8 src tests
 
