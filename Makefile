@@ -8,11 +8,11 @@ dev:
 
 .PHONY: fmt
 fmt:
-# sorting imports
+	# sorting imports
 	pipenv run isort -rc $(PYTHON_FOLDERS)
-# code formatter
+	# code formatter
 	pipenv run black $(PYTHON_FOLDERS)
-# linting
+	# linting
 	pipenv run flake8 $(PYTHON_FOLDERS)
 
 .PHONY: prod
@@ -31,15 +31,15 @@ setup:
 
 .PHONY: stats
 stats:
-# same as radon commands but actually fails if conditions are not met
+	# same as radon commands but actually fails if conditions are not met
 	pipenv run xenon --max-absolute C --max-modules A --max-average A $(PYTHON_FOLDERS)
-# prints minimal code statistics
+	# prints minimal code statistics
 	pipenv run radon cc --min B $(PYTHON_FOLDERS)
 	pipenv run radon mi --min B $(PYTHON_FOLDERS)
-# security
+	# security
 	pipenv run bandit -r $(SRC_FOLDER)
 
 .PHONY: test
 test:
-# tests and coverage
+	# tests and coverage
 	pipenv run python -m pytest --cov=src --cov-fail-under=4 $(TESTS_FOLDER)
