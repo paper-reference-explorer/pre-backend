@@ -16,6 +16,8 @@ services:
       - ../mounts/blastdata:/blastdata
   postgres:
     image: postgres:11-alpine
+    env_file:
+        - ../env/secrets.env
     volumes:
       - ../mounts/pgdata:/var/lib/postgresql/data
   redis:

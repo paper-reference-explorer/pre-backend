@@ -89,7 +89,6 @@ celerybeat-schedule
 # Environments
 .env
 .venv
-env/
 venv/
 ENV/
 env.bak/
@@ -113,3 +112,6 @@ dmypy.json
 .idea
 data/
 mounts*/
+
+env/*.env
+!env/template.secrets.env
