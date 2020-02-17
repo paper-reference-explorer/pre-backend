@@ -6,11 +6,11 @@ dev:
 .PHONY: fmt
 fmt:
 # sorting imports
-	isort -r src/* tests/*
+	pipenv run isort -r src/* tests/*
 # code formatter
-	black --py36 --skip-string-normalization src tests
+	pipenv run black --py36 --skip-string-normalization src tests
 # linting
-	flake8 src tests
+	pipenv run flake8 src tests
 
 .PHONY: prod
 prod:
@@ -29,15 +29,15 @@ setup:
 .PHONY: stats
 stats:
 # same as radon commands but actually fails if conditions are not met
-	xenon --max-absolute C --max-modules A --max-average A src
-	xenon --max-absolute C --max-modules A --max-average A tests
+	pipenv run xenon --max-absolute C --max-modules A --max-average A src
+	pipenv run xenon --max-absolute C --max-modules A --max-average A tests
 # prints minimal code statistics
-	radon cc --min B src tests
-	radon mi --min B src tests
+	pipenv run radon cc --min B src tests
+	pipenv run radon mi --min B src tests
 # security
-	bandit -r src
+	pipenv run bandit -r src
 
 .PHONY: test
 test:
 # tests and coverage
-	python -m pytest --cov=src --cov-fail-under=4 tests
+	pipenv run python -m pytest --cov=src --cov-fail-under=4 tests
