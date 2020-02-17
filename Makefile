@@ -1,3 +1,6 @@
+SRC_FOLDER := src
+TESTS_FOLDER := tests
+PYTHON_FOLDERS := $(SRC_FOLDER) $(TESTS_FOLDER)
 .PHONY: dev
 dev:
 	sudo docker-compose -f docker-related/docker-compose.services.yml -f docker-related/docker-compose.api.yml -f docker-related/docker-compose.api.dev.yml build
@@ -6,11 +9,11 @@ dev:
 .PHONY: fmt
 fmt:
 # sorting imports
-	pipenv run isort -r src/* tests/*
+	pipenv run isort -rc $(PYTHON_FOLDERS)
 # code formatter
-	pipenv run black --py36 --skip-string-normalization src tests
+	pipenv run black $(PYTHON_FOLDERS)
 # linting
-	pipenv run flake8 src tests
+	pipenv run flake8 $(PYTHON_FOLDERS)
 
 .PHONY: prod
 prod:
@@ -29,15 +32,14 @@ setup:
 .PHONY: stats
 stats:
 # same as radon commands but actually fails if conditions are not met
-	pipenv run xenon --max-absolute C --max-modules A --max-average A src
-	pipenv run xenon --max-absolute C --max-modules A --max-average A tests
+	pipenv run xenon --max-absolute C --max-modules A --max-average A $(PYTHON_FOLDERS)
 # prints minimal code statistics
-	pipenv run radon cc --min B src tests
-	pipenv run radon mi --min B src tests
+	pipenv run radon cc --min B $(PYTHON_FOLDERS)
+	pipenv run radon mi --min B $(PYTHON_FOLDERS)
 # security
-	pipenv run bandit -r src
+	pipenv run bandit -r $(SRC_FOLDER)
 
 .PHONY: test
 test:
 # tests and coverage
-	pipenv run python -m pytest --cov=src --cov-fail-under=4 tests
+	pipenv run python -m pytest --cov=src --cov-fail-under=4 $(TESTS_FOLDER)
