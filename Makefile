@@ -42,4 +42,4 @@ stats:
 .PHONY: test
 test:
 	# tests and coverage
-	pipenv run python -m pytest --cov=src --cov-fail-under=4 $(TESTS_FOLDER)
+	pipenv run python3 -m pytest --cov=src --cov-fail-under=4 $(TESTS_FOLDER)
