@@ -6,15 +6,15 @@ import redis
 
 
 class InputConfig:
-    SOURCE_URL = 'https://github.com/paperscape/paperscape-data.git'
+    SOURCE_URL = "https://github.com/paperscape/paperscape-data.git"
     N_MAX_SPLITS = 7
     ID_INDEX = 0
     CATEGORIES_INDEX = 1
     REFERENCES_INDEX = 4
     AUTHORS_INDEX = 5
     TITLE_INDEX = 6
-    INPUT_FOLDER_NAME = 'input'
-    FILE_GLOB = '*.csv'
+    INPUT_FOLDER_NAME = "input"
+    FILE_GLOB = "*.csv"
 
 
 class ServiceConfig(abc.ABC):
@@ -40,13 +40,13 @@ class ServiceConfig(abc.ABC):
 
     @property
     def FILE_GLOB(self) -> str:
-        return f'*.{self.FILE_EXTENSION}'
+        return f"*.{self.FILE_EXTENSION}"
 
 
 class _BlastServiceConfig(ServiceConfig):
     @property
     def HOST(self) -> str:
-        return 'blast'
+        return "blast"
 
     @property
     def PORT(self) -> int:
@@ -54,15 +54,15 @@ class _BlastServiceConfig(ServiceConfig):
 
     @property
     def FILE_EXTENSION(self) -> str:
-        return 'json'
+        return "json"
 
     @property
     def FOLDER_NAME(self) -> str:
-        return 'blast'
+        return "blast"
 
     @property
     def FILE_START(self) -> str:
-        return '['
+        return "["
 
     def FILE_ENTRY(
         self, is_first_line: bool, paper_id: str, year: str, authors: str, title: str
@@ -82,19 +82,19 @@ class _BlastServiceConfig(ServiceConfig):
 
     @property
     def FILE_END(self) -> str:
-        return '\n]'
+        return "\n]"
 
     @property
     def _URL_BASE(self) -> str:
-        return f'http://{self.HOST}:{self.PORT}/rest'
+        return f"http://{self.HOST}:{self.PORT}/rest"
 
     @property
     def POST_URL(self) -> str:
-        return f'{self._URL_BASE}/_bulk'
+        return f"{self._URL_BASE}/_bulk"
 
     @property
     def SEARCH_URL(self) -> str:
-        return f'{self._URL_BASE}/_search'
+        return f"{self._URL_BASE}/_search"
 
     @property
     def SEARCH_REQUEST_DICT(self) -> Dict:
@@ -114,7 +114,7 @@ class _BlastServiceConfig(ServiceConfig):
 class _PostgresServiceConfig(ServiceConfig):
     @property
     def HOST(self) -> str:
-        return 'postgres'
+        return "postgres"
 
     @property
     def PORT(self) -> int:
@@ -122,19 +122,19 @@ class _PostgresServiceConfig(ServiceConfig):
 
     @property
     def FILE_EXTENSION(self) -> str:
-        return 'sql'
+        return "sql"
 
     @property
     def FOLDER_NAME(self) -> str:
-        return 'postgres'
+        return "postgres"
 
     @property
     def DB_NAME(self) -> str:
-        return 'postgres'
+        return "postgres"
 
     @property
     def USER_NAME(self) -> str:
-        return 'postgres'
+        return "postgres"
 
     @property
     def CONNECTION_STRING(self) -> str:
@@ -148,11 +148,11 @@ class _PostgresServiceConfig(ServiceConfig):
 
     @property
     def CREATE_TABLE_FILE_NAME(self) -> str:
-        return f'create_tables.{self.FILE_EXTENSION}'
+        return f"create_tables.{self.FILE_EXTENSION}"
 
     @property
     def INSERT_INTO_PAPERS_FILE_NAME(self) -> str:
-        return f'insert_into_papers.{self.FILE_EXTENSION}'
+        return f"insert_into_papers.{self.FILE_EXTENSION}"
 
     @property
     def CREATE_TABLES_SQL(self) -> str:
@@ -182,23 +182,23 @@ VALUES"""
         self, is_first_line: bool, paper_id: str, refs: List[str]
     ) -> str:
         document = [
-            ('' if is_first_line and index == 0 else ',\n      ')
+            ("" if is_first_line and index == 0 else ",\n      ")
             + f" ('{paper_id}', '{r}')"
             for index, r in enumerate(refs)
         ]
-        document = ''.join(document)
+        document = "".join(document)
         return document
 
     @property
     def INSERT_INTO_REFS_END(self) -> str:
-        return '\n;'
+        return "\n;"
 
     def INSERT_INTO_PAPERS_SQL(self, ids: set) -> str:
         document = [
-            ('' if index == 0 else ',\n      ') + f" ('{r}')"
+            ("" if index == 0 else ",\n      ") + f" ('{r}')"
             for index, r in enumerate(sorted(list(ids)))
         ]
-        document = ''.join(document)
+        document = "".join(document)
         document = f"""INSERT INTO papers (ID)
 VALUES{document}
 ;"""
@@ -206,13 +206,13 @@ VALUES{document}
 
     @property
     def REFERENCED_BY_SQL(self) -> str:
-        return 'SELECT referencer FROM refs WHERE referencee = %(paper_id)s'
+        return "SELECT referencer FROM refs WHERE referencee = %(paper_id)s"
 
 
 class _RedisServiceConfig(ServiceConfig):
     @property
     def HOST(self) -> str:
-        return 'redis'
+        return "redis"
 
     @property
     def PORT(self) -> int:
@@ -220,11 +220,11 @@ class _RedisServiceConfig(ServiceConfig):
 
     @property
     def FILE_EXTENSION(self) -> str:
-        return 'csv'
+        return "csv"
 
     @property
     def FOLDER_NAME(self) -> str:
-        return 'redis'
+        return "redis"
 
     @property
     def DB(self) -> int:
@@ -235,7 +235,7 @@ class _RedisServiceConfig(ServiceConfig):
             host=self.HOST,
             port=self.PORT,
             db=self.DB,
-            charset='utf-8',
+            charset="utf-8",
             decode_responses=True,
         )
 
@@ -244,4 +244,4 @@ BlastServiceConfig = _BlastServiceConfig()
 PostgresServiceConfig = _PostgresServiceConfig()
 RedisServiceConfig = _RedisServiceConfig()
 
-LOG_FORMAT = '%(asctime)s - %(levelname)-8s - %(name)s    - %(message)s'
+LOG_FORMAT = "%(asctime)s - %(levelname)-8s - %(name)s    - %(message)s"

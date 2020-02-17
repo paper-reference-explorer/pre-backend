@@ -14,12 +14,12 @@ redis_connection = config.RedisServiceConfig.create_connection()
 postgres_connection = config.PostgresServiceConfig.create_connection()
 
 
-@app.route('/')
+@app.route("/")
 def hello_world():
-    return 'Hello World!'
+    return "Hello World!"
 
 
-@app.route('/api/v1/paper/<string:paper_id>')
+@app.route("/api/v1/paper/<string:paper_id>")
 def paper(paper_id: str):
     p = _get_paper(paper_id)
     if p is None:
@@ -28,11 +28,11 @@ def paper(paper_id: str):
     return jsonify(p)
 
 
-@app.route('/api/v1/autocomplete/<string:query>')
+@app.route("/api/v1/autocomplete/<string:query>")
 def autocomplete(query: str):
     query = processing.clean_query(query)
     payload = copy.deepcopy(config.BlastServiceConfig.SEARCH_REQUEST_DICT)
-    payload['search_request']['query']['query'] = query
+    payload["search_request"]["query"]["query"] = query
     payload = json.dumps(payload)
 
     blast_response = requests.post(config.BlastServiceConfig.SEARCH_URL, data=payload)
@@ -40,9 +40,9 @@ def autocomplete(query: str):
         abort(blast_response.status_code)
 
     blast_response = json.loads(blast_response.content.decode())
-    if blast_response['success']:
-        hits = blast_response['search_result']['hits']
-        result = [_get_paper(h['id']) for h in hits]
+    if blast_response["success"]:
+        hits = blast_response["search_result"]["hits"]
+        result = [_get_paper(h["id"]) for h in hits]
         result = [r for r in result if r is not None]
     else:
         result = []
@@ -50,7 +50,7 @@ def autocomplete(query: str):
     return jsonify(result)
 
 
-@app.route('/api/v1/referenced_by/<string:paper_id>')
+@app.route("/api/v1/referenced_by/<string:paper_id>")
 def references(paper_id: str):
     cursor = postgres_connection.cursor()
 
@@ -72,12 +72,12 @@ def references(paper_id: str):
 def _get_paper(paper_id: str) -> Optional[Dict[str, str]]:
     p = redis_connection.hgetall(paper_id)
     if len(p.keys()) > 0:
-        p['id'] = paper_id
-        p['referenced_by_n'] = p.get('referenced_by_n', 0)
+        p["id"] = paper_id
+        p["referenced_by_n"] = p.get("referenced_by_n", 0)
         return p
     else:
         return None
 
 
-if __name__ == '__main__':
-    app.run('0.0.0.0')
+if __name__ == "__main__":
+    app.run("0.0.0.0")

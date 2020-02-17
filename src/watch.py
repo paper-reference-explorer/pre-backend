@@ -41,8 +41,8 @@ class Setup(abc.ABC):
         pass
 
     def _get_paths(self) -> Tuple[Path, List[Path]]:
-        base_path = Path('data')
-        input_path = base_path / 'output_for' / self._service_config.FOLDER_NAME
+        base_path = Path("data")
+        input_path = base_path / "output_for" / self._service_config.FOLDER_NAME
         input_file_paths = input_path.glob(self._service_config.FILE_GLOB)
         input_file_paths = sorted(input_file_paths, reverse=True)
         return input_path, input_file_paths
@@ -57,26 +57,26 @@ class Setup(abc.ABC):
             if error.errno == -2:
                 logger.error(
                     f'Name or service "{self._service_config.HOST}" not known.'
-                    + f' Either the docker-compose file is wrong or this file is'
-                    + f' run outside of docker.'
+                    + f" Either the docker-compose file is wrong or this file is"
+                    + f" run outside of docker."
                 )
                 exit(-2)
             else:
                 raise error
 
         while result != 0:
-            logger.info('Port is not open')
+            logger.info("Port is not open")
             time.sleep(1)
             result = sock.connect_ex(connection_info)
 
-        logger.info('Port is open')
+        logger.info("Port is open")
         for _ in range(5):
-            logger.info('.')
+            logger.info(".")
             time.sleep(1)
 
         end_time = time.time()
         duration = end_time - start_time
-        logging.info(f'Time passed waiting: {duration:.02f}')
+        logging.info(f"Time passed waiting: {duration:.02f}")
 
     def run(self) -> None:
         self._do_work()
@@ -94,11 +94,11 @@ class Setup(abc.ABC):
 
             end_time = time.time()
             duration = end_time - start_time
-            logging.info(f'Time passed: {duration:.02f}')
+            logging.info(f"Time passed: {duration:.02f}")
 
     @staticmethod
     def _log_filename(filename: Path) -> None:
-        logging.info(f'Reading {filename.name}...')
+        logging.info(f"Reading {filename.name}...")
 
 
 class SetupBlast(Setup):
@@ -113,9 +113,9 @@ class SetupBlast(Setup):
 
     def _step(self, file: Path) -> None:
         response = requests.post(
-            self._service_config.POST_URL, data=open(str(file), 'rb')
+            self._service_config.POST_URL, data=open(str(file), "rb")
         )
-        logger.info(f'{response.status_code}: {response.content}')
+        logger.info(f"{response.status_code}: {response.content}")
 
     def _post_setup(self) -> None:
         pass
@@ -138,7 +138,7 @@ class SetupPostgres(Setup):
 
     def _step(self, file: Path) -> None:
         cursor = self._connection.cursor()
-        cursor.execute(open(str(file), 'r').read())
+        cursor.execute(open(str(file), "r").read())
         self._connection.commit()
         cursor.close()
 
@@ -150,7 +150,7 @@ class SetupPostgres(Setup):
             input_file_path = self._input_path / input_file_name
             self._log_filename(input_file_path)
             cursor = self._connection.cursor()
-            cursor.execute(open(str(input_file_path), 'r').read())
+            cursor.execute(open(str(input_file_path), "r").read())
             self._connection.commit()
             cursor.close()
 
@@ -167,10 +167,10 @@ class SetupRedis(Setup):
         return []
 
     def _step(self, file: Path) -> None:
-        with open(str(file), newline='') as input_file:
+        with open(str(file), newline="") as input_file:
             file_reader = csv.reader(input_file)
             for paper_id, year, authors, title in file_reader:
-                data = {'year': year, 'authors': authors, 'title': title}
+                data = {"year": year, "authors": authors, "title": title}
                 self._connection.hmset(paper_id, data)
 
     def _post_setup(self) -> None:
@@ -209,12 +209,12 @@ GROUP BY p.ID"""
     redis_service_config = config.RedisServiceConfig
     redis_connection = redis_service_config.create_connection()
     for paper_id, referenced_count in cursor:
-        redis_connection.hsetnx(paper_id, 'referenced_by_n', referenced_count)
+        redis_connection.hsetnx(paper_id, "referenced_by_n", referenced_count)
     postgres_connection.commit()
     cursor.close()
 
     postgres_connection.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()

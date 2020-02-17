@@ -45,8 +45,8 @@ class Converter(abc.ABC):
     @property
     def _output_file_path(self) -> Path:
         return self.output_path / (
-            f'{self._current_year}_{self._file_index}'
-            + f'.{self._service_config.FILE_EXTENSION}'
+            f"{self._current_year}_{self._file_index}"
+            + f".{self._service_config.FILE_EXTENSION}"
         )
 
     @abc.abstractmethod
@@ -99,7 +99,7 @@ class BlastConverter(Converter):
 
     def _open_output_file(self) -> None:
         self._is_first_line = True
-        self._current_file = open(str(self._output_file_path), 'w')
+        self._current_file = open(str(self._output_file_path), "w")
         self._current_file.write(self._service_config.FILE_START)
 
     def _handle_fields(self, fields: List[str]) -> None:
@@ -137,7 +137,7 @@ class PostgresConverter(Converter):
 
     def _open_output_file(self) -> None:
         self._is_first_line = True
-        self._current_file = open(str(self._output_file_path), 'w')
+        self._current_file = open(str(self._output_file_path), "w")
         self._current_file.write(self._service_config.INSERT_INTO_REFS_START)
 
     def _handle_fields(self, fields: List[str]) -> None:
@@ -148,9 +148,9 @@ class PostgresConverter(Converter):
 
     def _convert_to_document(self, fields: List[str]) -> Optional[str]:
         paper_id = processing.clean_id(fields[config.InputConfig.ID_INDEX])
-        refs = fields[config.InputConfig.REFERENCES_INDEX].split(',')
+        refs = fields[config.InputConfig.REFERENCES_INDEX].split(",")
         refs = [processing.clean_id(r) for r in refs]
-        if len(refs) == 1 and refs[0] == '':
+        if len(refs) == 1 and refs[0] == "":
             return None
 
         self._ids.add(paper_id)
@@ -167,20 +167,20 @@ class PostgresConverter(Converter):
     def post_conversion(self) -> None:
         if self._skipped_once:
             logger.warning(
-                'Skipping post conversion for postgres because'
-                + 'at least one input file was skipped.'
+                "Skipping post conversion for postgres because"
+                + "at least one input file was skipped."
             )
             return
         create_tables_file_path = (
             self.output_path / self._service_config.CREATE_TABLE_FILE_NAME
         )
-        with open(str(create_tables_file_path), 'w') as create_tables_file:
+        with open(str(create_tables_file_path), "w") as create_tables_file:
             create_tables_file.write(config.PostgresServiceConfig.CREATE_TABLES_SQL)
 
         insert_into_papers_file_path = (
             self.output_path / self._service_config.INSERT_INTO_PAPERS_FILE_NAME
         )
-        with open(str(insert_into_papers_file_path), 'w') as insert_into_papers_file:
+        with open(str(insert_into_papers_file_path), "w") as insert_into_papers_file:
             document = config.PostgresServiceConfig.INSERT_INTO_PAPERS_SQL(self._ids)
             insert_into_papers_file.write(document)
 
@@ -196,7 +196,7 @@ class RedisConverter(Converter):
 
     def _open_output_file(self) -> None:
         self._is_first_line = True
-        output_file = open(str(self._output_file_path), 'w', newline='')
+        output_file = open(str(self._output_file_path), "w", newline="")
         self._writer = csv.writer(output_file)
 
     def _handle_fields(self, fields: List[str]) -> None:
@@ -208,7 +208,7 @@ class RedisConverter(Converter):
         paper_id = processing.clean_id(fields[config.InputConfig.ID_INDEX])
         authors = processing.clean_field(
             fields[config.InputConfig.AUTHORS_INDEX]
-        ).replace(',', ', ')
+        ).replace(",", ", ")
         title = processing.clean_field(fields[config.InputConfig.TITLE_INDEX])
         document = [paper_id, self._current_year, authors, title]
         return document
@@ -222,7 +222,7 @@ class RedisConverter(Converter):
 
 def clean_folder_maybe(path: Path, clean_folder: bool, recreate: bool = True) -> None:
     if clean_folder and path.exists():
-        logger.info(f'Cleaning folder {path.name}')
+        logger.info(f"Cleaning folder {path.name}")
         shutil.rmtree(path)
 
     if recreate:
@@ -230,22 +230,22 @@ def clean_folder_maybe(path: Path, clean_folder: bool, recreate: bool = True) ->
 
 
 @click.command()
-@click.option('--max-elements-per-file', '-mepf', type=int, default=10000)
-@click.option('--max-n-files', '-mnf', type=int, default=5)
-@click.option('--clean-input/--no-clean-input', '-ci/-nci', default=False)
-@click.option('--clean-output/--no-clean-output', '-co/-nco', default=False)
+@click.option("--max-elements-per-file", "-mepf", type=int, default=10000)
+@click.option("--max-n-files", "-mnf", type=int, default=5)
+@click.option("--clean-input/--no-clean-input", "-ci/-nci", default=False)
+@click.option("--clean-output/--no-clean-output", "-co/-nco", default=False)
 def main(
     max_elements_per_file: int,
     max_n_files: Optional[int],
     clean_input: bool = False,
     clean_output: bool = False,
 ) -> None:
-    base_path = Path('data')
+    base_path = Path("data")
     input_path = base_path / config.InputConfig.INPUT_FOLDER_NAME
     clean_folder_maybe(input_path, clean_input, recreate=False)
     clone_repo(input_path)
 
-    output_path_base = base_path / 'output_for'
+    output_path_base = base_path / "output_for"
     converters = [
         BlastConverter(output_path_base, clean_output, max_elements_per_file),
         RedisConverter(output_path_base, clean_output, max_elements_per_file),
@@ -259,39 +259,39 @@ def main(
         if max_n_files is not None and index >= max_n_files:
             break
 
-        logging.info(f'Converting {input_file_path.name}...')
+        logging.info(f"Converting {input_file_path.name}...")
         year = input_file_path.name[5:9]
-        with open(str(input_file_path), 'r') as input_file:
+        with open(str(input_file_path), "r") as input_file:
             n_elements_in_file = 0
 
             [c.input_file_opened(year) for c in converters]
 
             for line in input_file:
                 line_clean = line.strip()
-                if line_clean.startswith('#'):
+                if line_clean.startswith("#"):
                     continue
 
-                fields = line.split(';', config.InputConfig.N_MAX_SPLITS)
-                categories = fields[config.InputConfig.CATEGORIES_INDEX].split(',')
-                if any([c.startswith('cs.') for c in categories]):
+                fields = line.split(";", config.InputConfig.N_MAX_SPLITS)
+                categories = fields[config.InputConfig.CATEGORIES_INDEX].split(",")
+                if any([c.startswith("cs.") for c in categories]):
                     n_elements_in_file += 1
                     [c.handle_line(fields) for c in converters]
 
             [c.input_file_closed() for c in converters]
 
-            logging.info(f'N elements converted: {n_elements_in_file}')
+            logging.info(f"N elements converted: {n_elements_in_file}")
             n_total_elements += n_elements_in_file
 
     [c.post_conversion() for c in converters]
-    logging.info(f'N elements converted in total: {n_total_elements}')
+    logging.info(f"N elements converted in total: {n_total_elements}")
 
 
 def clone_repo(input_path: Path) -> None:
     if not input_path.exists():
-        logger.info('Cloning repo...')
+        logger.info("Cloning repo...")
         Repo.clone_from(config.InputConfig.SOURCE_URL, input_path)
-        logger.info('Finished cloning repo')
+        logger.info("Finished cloning repo")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
