@@ -13,11 +13,11 @@ requests = "*"
 
 [dev-packages]
 bandit = "*"
-black = "*"
+black = "==19.10b0"
 "flake8" = "*"
 gitpython = "*"
 hypothesis = "*"
-isort = {extras = ["pipfile"], version = "*"}
+isort = {extras = ["pipfile"],version = "*"}
 pytest = "*"
 pytest-cov = "*"
 radon = "*"
@@ -25,6 +25,3 @@ xenon = "*"
 
 [requires]
 python_version = "3.7"
-
-[pipenv]
-allow_prereleases = true
