@@ -1,8 +1,43 @@
 import abc
+import logging
+import os
+from pathlib import Path
 from typing import Dict, List
 
 import psycopg2
 import redis
+from dotenv import load_dotenv
+
+
+LOG_FORMAT = "%(asctime)s - %(levelname)-8s - %(name)s    - %(message)s"
+
+logging.basicConfig(format=LOG_FORMAT, level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# assume the script is run from the parent folder
+env_folder_path = Path(".") / "env"
+if env_folder_path.exists():
+    file_path = env_folder_path / "secrets.env"
+    template_path = env_folder_path / "template.secrets.env"
+    if file_path.exists():
+        # executed locally
+        logger.info(f"Loading environment variables from {str(file_path)}")
+        load_dotenv(dotenv_path=file_path)
+    elif template_path.exists():
+        # executed locally but secrets.env is missing
+        logger.error(
+            f"{str(template_path)} exists but {str(file_path)} is missing. "
+            f"Please create it by copying the template and removing "
+            f'"template." from the filename.'
+        )
+        exit(1)
+else:
+    logger.info(
+        "env folder not found,"
+        + " assuming we are in docker and environment variables are provided"
+    )
+
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
 
 
 class InputConfig:
@@ -140,7 +175,7 @@ class _PostgresServiceConfig(ServiceConfig):
     def CONNECTION_STRING(self) -> str:
         return (
             f"host='{self.HOST}' port={self.PORT} dbname={self.DB_NAME}"
-            + f" user={self.USER_NAME} password=mysecretpassword"
+            + f" user={self.USER_NAME} password={POSTGRES_PASSWORD}"
         )
 
     def create_connection(self) -> psycopg2.extensions.connection:
@@ -243,5 +278,3 @@ class _RedisServiceConfig(ServiceConfig):
 BlastServiceConfig = _BlastServiceConfig()
 PostgresServiceConfig = _PostgresServiceConfig()
 RedisServiceConfig = _RedisServiceConfig()
-
-LOG_FORMAT = "%(asctime)s - %(levelname)-8s - %(name)s    - %(message)s"

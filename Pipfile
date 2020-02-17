@@ -11,6 +11,7 @@ psycopg2-binary = "*"
 redis = "*"
 requests = "*"
 gitpython = "*"
+python-dotenv = "*"
 
 [dev-packages]
 bandit = "*"
