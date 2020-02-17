@@ -10,6 +10,7 @@ nltk = "*"
 psycopg2-binary = "*"
 redis = "*"
 requests = "*"
+gitpython = "*"
 
 [dev-packages]
 bandit = "*"
